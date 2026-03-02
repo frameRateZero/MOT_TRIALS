@@ -905,17 +905,34 @@ let cfg = {
 // ════════════════════════════════════════
 let session = null;
 
+// Build 10 log-spaced ladder values from initVal/10 → initVal*10 (ascending = easy→hard)
+function buildLadder(initVal, dim) {
+  const lim = DIM_LIMITS[dim];
+  const lo  = Math.max(lim.min, initVal / 10);
+  const hi  = Math.min(lim.max, initVal * 10);
+  const steps = 10;
+  return Array.from({ length: steps }, (_, i) => {
+    const t   = i / (steps - 1);                     // 0 → 1
+    const val = lo * Math.pow(hi / lo, t);           // log-linear
+    return Math.round(val);
+  });
+}
+
 function newSession() {
+  const ladderVals = buildLadder(cfg.initVal, cfg.staircaseDim);
   return {
     trialCount:    0,
     correctCount:  0,
     reversals:     0,
     lastOutcome:   null,
-    currentVal:    cfg.initVal,
+    currentVal:    ladderVals[0],   // start at easy end of ladder
     history:       [],
     revVals:       [],
     nextProbeIdx:  0,
     lastProbeAt:   -1,
+    ladderVals,
+    ladderIdx:     0,               // which ladder step we're on (10 = done)
+    ladderDone:    false,
     startTime:     new Date(),
     cfg:           { ...cfg }
   };
@@ -1560,20 +1577,33 @@ let currentProbeLevel = null;
 function startTrial() {
   selected.clear();
 
-  if (isThisProbeTrialDue(session)) {
-    currentProbeLevel = PROBE_LEVELS[session.nextProbeIdx % PROBE_LEVELS.length];
-    session.lastProbeAt = session.history.filter(h => h.trialType === 'staircase').length;
-  } else {
+  // ── Ladder phase (first 10 trials) ──
+  const inLadder = !session.ladderDone;
+  if (inLadder) {
     currentProbeLevel = null;
+    const trialVal            = session.ladderVals[session.ladderIdx];
+    currentTrialParams        = trialParams(trialVal);
+    currentTrialParams._val   = trialVal;
+    currentTrialParams._probe = null;
+    currentTrialParams._ladder = true;
+  } else {
+    // ── Staircase / probe phase ──
+    if (isThisProbeTrialDue(session)) {
+      currentProbeLevel = PROBE_LEVELS[session.nextProbeIdx % PROBE_LEVELS.length];
+      session.lastProbeAt = session.history.filter(h => h.trialType === 'staircase').length;
+    } else {
+      currentProbeLevel = null;
+    }
+
+    const trialVal = currentProbeLevel !== null
+      ? probeValue(currentProbeLevel, session)
+      : session.currentVal;
+
+    currentTrialParams        = trialParams(trialVal);
+    currentTrialParams._val   = trialVal;
+    currentTrialParams._probe = currentProbeLevel;
+    currentTrialParams._ladder = false;
   }
-
-  const trialVal = currentProbeLevel !== null
-    ? probeValue(currentProbeLevel, session)
-    : session.currentVal;
-
-  currentTrialParams        = trialParams(trialVal);
-  currentTrialParams._val   = trialVal;
-  currentTrialParams._probe = currentProbeLevel;
 
   balls = makeBalls(currentTrialParams.numBalls, currentTrialParams.speed);
   targets.clear();
@@ -1589,9 +1619,18 @@ function startTrial() {
   document.getElementById('hud-trial').textContent     = session.trialCount + 1;
 
   const badge = document.getElementById('probe-badge');
-  if (currentProbeLevel) {
+  if (!session.ladderDone) {
+    badge.style.display = 'block';
+    badge.textContent = `LADDER ${session.ladderIdx}/10`;
+    badge.style.color = 'var(--yellow)';
+    badge.style.borderColor = 'rgba(255,208,96,0.45)';
+    badge.style.background  = 'rgba(255,208,96,0.08)';
+  } else if (currentProbeLevel) {
     badge.style.display = 'block';
     badge.textContent = `◆ ${currentProbeLevel.toUpperCase()}`;
+    badge.style.color = 'var(--purple)';
+    badge.style.borderColor = 'rgba(176,106,255,0.45)';
+    badge.style.background  = 'rgba(176,106,255,0.15)';
   } else {
     badge.style.display = 'none';
   }
@@ -1647,9 +1686,22 @@ function submitResponse() {
   session.trialCount++;
   session.correctCount += rawScore;
 
+  const isLadder = currentTrialParams._ladder === true;
   const prev  = session.lastOutcome;
   let   isRev = false;
-  if (!isProbe) {
+
+  if (isLadder) {
+    // Record ladder outcome; advance index
+    session.ladderIdx++;
+    if (session.ladderIdx >= session.ladderVals.length || !aboveThreshold) {
+      // Ladder done: set staircase init to last-correct ladder value (or step back one)
+      const flipIdx = !aboveThreshold
+        ? Math.max(0, session.ladderIdx - 1)   // step back from first miss
+        : session.ladderIdx - 1;               // all correct — use top of ladder
+      session.currentVal = session.ladderVals[flipIdx];
+      session.ladderDone = true;
+    }
+  } else if (!isProbe) {
     session.lastOutcome = aboveThreshold ? 'above' : 'below';
     isRev = prev !== null && prev !== session.lastOutcome;
     if (isRev) { session.reversals++; session.revVals.push(trialVal); }
@@ -1661,7 +1713,7 @@ function submitResponse() {
   session.history.push({
     trial:          session.trialCount,
     staircaseDim:   cfg.staircaseDim,
-    trialType:      isProbe ? 'probe' : 'staircase',
+    trialType:      isLadder ? 'ladder' : isProbe ? 'probe' : 'staircase',
     probeLevel:     probeLevel,
     probeStage:     isProbe ? Math.min(2, session.reversals) : null,
     staircaseVal:   trialVal,
@@ -1696,7 +1748,10 @@ function submitResponse() {
 
   const progLabel = document.getElementById('hud-prog-label');
   const progVal   = document.getElementById('hud-rev');
-  if (cfg.stopMode === 'reversals') {
+  if (isLadder) {
+    progLabel.textContent = 'Lad';
+    progVal.textContent   = Math.min(session.ladderIdx, session.ladderVals.length) + '/' + session.ladderVals.length;
+  } else if (cfg.stopMode === 'reversals') {
     progLabel.textContent = 'Rev';
     progVal.textContent   = session.reversals + '/' + cfg.reversalStop;
   } else if (cfg.stopMode === 'trials') {
@@ -1708,8 +1763,10 @@ function submitResponse() {
   }
 
   let done = false;
-  if      (cfg.stopMode === 'reversals') done = session.reversals >= cfg.reversalStop;
-  else if (cfg.stopMode === 'trials')    done = session.trialCount >= cfg.trialLimit;
+  if (!isLadder) {
+    if      (cfg.stopMode === 'reversals') done = session.reversals >= cfg.reversalStop;
+    else if (cfg.stopMode === 'trials')    done = session.trialCount >= cfg.trialLimit;
+  }
 
   const lastH     = session.history[session.history.length - 1];
   const oel       = document.getElementById('ov-result');
@@ -1729,9 +1786,16 @@ function submitResponse() {
   }
 
   let progressLine = '';
-  if (cfg.stopMode === 'reversals')   progressLine = `Rev: <strong>${session.reversals}/${cfg.reversalStop}</strong>`;
-  else if (cfg.stopMode === 'trials') progressLine = `Trial: <strong>${session.trialCount}/${cfg.trialLimit}</strong>`;
-  else                                progressLine = `Trial: <strong>${session.trialCount}</strong>`;
+  if (isLadder) {
+    const stepsDone = Math.min(session.ladderIdx, session.ladderVals.length);
+    progressLine = `Ladder: <strong>${stepsDone}/${session.ladderVals.length}</strong>${session.ladderDone ? ' → staircase' : ''}`;
+  } else if (cfg.stopMode === 'reversals') {
+    progressLine = `Rev: <strong>${session.reversals}/${cfg.reversalStop}</strong>`;
+  } else if (cfg.stopMode === 'trials') {
+    progressLine = `Trial: <strong>${session.trialCount}/${cfg.trialLimit}</strong>`;
+  } else {
+    progressLine = `Trial: <strong>${session.trialCount}</strong>`;
+  }
 
   const dim    = cfg.staircaseDim;
   const lim    = DIM_LIMITS[dim];
