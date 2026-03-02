@@ -583,11 +583,12 @@ input[type=range]::-webkit-slider-thumb {
           </div>
           <div style="font-size:0.72rem;color:var(--dim);line-height:1.6;padding-top:6px">
             Probes are shown as <span style="color:var(--purple);font-family:var(--mono)">◆ PROBE</span> in the HUD.
-            They cover: <strong style="color:var(--text)">floor</strong> (0 targets possible),
+            They cover: <strong style="color:var(--text)">floor</strong> (well below threshold),
             <strong style="color:var(--text)">easy</strong> (3× threshold),
             <strong style="color:var(--text)">near</strong> (1.5×),
             <strong style="color:var(--text)">hard</strong> (0.5×), and
-            <strong style="color:var(--text)">ceiling</strong> (trivially long).
+            <strong style="color:var(--text)">ceiling</strong> (well above threshold).
+            Floor &amp; ceiling become more extreme after the first reversal is recorded.
             These are not counted as reversals.
           </div>
         </div>
@@ -776,49 +777,93 @@ const DIM_LIMITS = {
 // ════════════════════════════════════════
 //
 // Probe levels span the full psychometric range:
-//   floor   → 0% correct (below random — use 0 targets so forced failure)
-//   hard    → ~0.3× estimated threshold  (should be ~20–30% correct)
-//   near    → ~0.6× threshold            (should be ~50% — near threshold)
-//   easy    → ~2.0× threshold            (should be ~80–90%)
-//   ceiling → very easy (3s+ or 1 distractor)  → ~100%
+//   floor   → forced failure (well below threshold)
+//   hard    → ~0.5× threshold  (~25% correct)
+//   near    → ~0.65× threshold (~50% correct, near threshold)
+//   easy    → ~2.0× threshold  (~85% correct)
+//   ceiling → forced success (well above threshold)
+//
+// Floor and ceiling use a two-stage anchor system:
+//   - Before 1st reversal: use a simple fraction/multiple of current estimate
+//   - After 1st reversal: anchor to the 1st reversal value ±100% (stage 1)
+//     then ±200% (stage 2, after 2nd reversal), giving increasingly extreme
+//     coverage of the psychometric range as the session converges.
 //
 // Probes interleave with the staircase every cfg.probeFreq staircase trials.
 // They rotate through all 5 levels in a fixed cycle.
 
 const PROBE_LEVELS = ['floor', 'hard', 'near', 'easy', 'ceiling'];
 
-// Compute the actual staircase value for a given probe level.
-// Uses the running estimate of threshold from reversals or init val.
 function probeValue(level, session) {
   const dim = session.cfg.staircaseDim;
   const lim = DIM_LIMITS[dim];
 
-  // Best current threshold estimate
+  // Best current threshold estimate (rolling mean of last 6 reversal values)
   const rvs = session.revVals;
   const est = rvs.length >= 2
     ? rvs.slice(-Math.min(6, rvs.length)).reduce((a, b) => a + b, 0) / Math.min(6, rvs.length)
     : session.currentVal;
 
+  // First-reversal anchor: use the value at which the first reversal occurred,
+  // if available. This is a stable early estimate of the threshold region.
+  const firstRevVal = rvs.length >= 1 ? rvs[0] : null;
+
+  // Stage:
+  //   0 = pre-first-reversal  → simple fraction of current estimate
+  //   1 = after 1st reversal  → anchor ±100%
+  //   2 = after 2nd reversal  → anchor ±200%
+  const stage = Math.min(2, session.reversals);
+
   const isHardDim = (dim === 'duration' || dim === 'speed');
 
-  // For duration/speed: bigger = easier; for balls/distractors: smaller = easier
+  // Compute floor/ceiling anchor offsets based on stage and first-rev value
+  function floorVal() {
+    if (!isHardDim) {
+      // For balls/distractors: floor = maximum (hardest end)
+      if (stage === 0) return lim.max;
+      const anchor = firstRevVal !== null ? firstRevVal : est;
+      if (stage === 1) return Math.min(lim.max, Math.round(anchor * 2.0));   // +100%
+      /* stage 2 */   return Math.min(lim.max, Math.round(anchor * 3.0));   // +200%
+    } else {
+      // For duration/speed: floor = minimum (hardest end — too short/slow to track)
+      if (stage === 0) return lim.min;
+      const anchor = firstRevVal !== null ? firstRevVal : est;
+      if (stage === 1) return Math.max(lim.min, Math.round(anchor * 0.50)); // −100% (half)
+      /* stage 2 */   return Math.max(lim.min, Math.round(anchor * 0.33)); // −200% (one-third)
+    }
+  }
+
+  function ceilingVal() {
+    if (!isHardDim) {
+      // For balls/distractors: ceiling = minimum (easiest end — fewest distractors)
+      if (stage === 0) return lim.min;
+      const anchor = firstRevVal !== null ? firstRevVal : est;
+      if (stage === 1) return Math.max(lim.min, Math.round(anchor * 0.50)); // −100%
+      /* stage 2 */   return Math.max(lim.min, Math.round(anchor * 0.33)); // −200%
+    } else {
+      // For duration/speed: ceiling = maximum (easiest end — very long/fast)
+      if (stage === 0) return lim.max;
+      const anchor = firstRevVal !== null ? firstRevVal : est;
+      if (stage === 1) return Math.min(lim.max, Math.round(anchor * 2.0));  // +100%
+      /* stage 2 */   return Math.min(lim.max, Math.round(anchor * 3.0));  // +200%
+    }
+  }
+
   if (isHardDim) {
-    // duration: longer = easier, shorter = harder
     switch (level) {
-      case 'floor':   return lim.min;                               // 0% — too short to track anything
-      case 'hard':    return Math.max(lim.min, est * 0.30);
+      case 'floor':   return floorVal();
+      case 'hard':    return Math.max(lim.min, est * 0.50);
       case 'near':    return Math.max(lim.min, est * 0.65);
       case 'easy':    return Math.min(lim.max, est * 2.0);
-      case 'ceiling': return lim.max;                              // trivially easy
+      case 'ceiling': return ceilingVal();
     }
   } else {
-    // balls/distractors: fewer = easier
     switch (level) {
-      case 'floor':   return lim.max;                               // too many — 0%
+      case 'floor':   return floorVal();
       case 'hard':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.5));
       case 'near':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.2));
       case 'easy':    return Math.max(lim.min, Math.round(est - (est - lim.min) * 0.5));
-      case 'ceiling': return lim.min;                              // trivially easy
+      case 'ceiling': return ceilingVal();
     }
   }
   return est;
@@ -826,9 +871,7 @@ function probeValue(level, session) {
 
 function isThisProbeTrialDue(session) {
   if (!session.cfg.enableProbes) return false;
-  // Count staircase trials so far
   const stairCount = session.history.filter(h => h.trialType === 'staircase').length;
-  // Due when stairCount is a multiple of probeFreq AND we haven't placed a probe at this count yet
   if (stairCount === 0) return false;
   return (stairCount % session.cfg.probeFreq) === 0 && session.lastProbeAt !== stairCount;
 }
@@ -867,14 +910,13 @@ function newSession() {
     currentVal:    cfg.initVal,
     history:       [],
     revVals:       [],
-    nextProbeIdx:  0,         // cycles through PROBE_LEVELS
-    lastProbeAt:   -1,        // staircase trial count when last probe was inserted
+    nextProbeIdx:  0,
+    lastProbeAt:   -1,
     startTime:     new Date(),
     cfg:           { ...cfg }
   };
 }
 
-// Get effective trial parameters for a staircase value
 function trialParams(val) {
   const p = {
     numBalls:   cfg.numBalls,
@@ -1238,7 +1280,6 @@ function drawMiniChart() {
   const tx = i => (i / (h.length-1)) * cw;
   const ty = d => ch - ((d - mn) / rn) * ch * 0.84 - ch * 0.06;
 
-  // Connect staircase trials
   const stairH = h.filter(x => x.trialType === 'staircase');
   miniCtx.beginPath();
   miniCtx.strokeStyle = 'rgba(0,212,255,0.4)'; miniCtx.lineWidth = 1.5;
@@ -1254,7 +1295,6 @@ function drawMiniChart() {
     const cx  = tx(i), cy = ty(x.staircaseVal);
     miniCtx.fillStyle = col;
     if (x.trialType === 'probe') {
-      // diamond
       const r = 3;
       miniCtx.beginPath();
       miniCtx.moveTo(cx, cy-r); miniCtx.lineTo(cx+r, cy);
@@ -1305,7 +1345,6 @@ function drawFullChart(fit) {
     const step=Math.ceil(h.length/8);
     for (let i=0;i<h.length;i+=step) fullCtx.fillText(i+1,tx(i),pad.t+gh+3);
 
-    // Staircase line
     const stairH = h.filter(x => x.trialType === 'staircase');
     fullCtx.beginPath(); fullCtx.strokeStyle='rgba(0,212,255,0.3)'; fullCtx.lineWidth=1.5;
     stairH.forEach((x, si) => {
@@ -1314,7 +1353,6 @@ function drawFullChart(fit) {
     });
     fullCtx.stroke();
 
-    // Reversal tick marks
     for (let i=1;i<h.length;i++) {
       if (h[i].trialType !== 'staircase') continue;
       const prev = [...h.slice(0,i)].reverse().find(x => x.trialType === 'staircase');
@@ -1325,14 +1363,12 @@ function drawFullChart(fit) {
       }
     }
 
-    // Dots
     h.forEach((x, i) => {
       const c   = x.correctedScore !== undefined ? x.correctedScore : (x.aboveThreshold ? 1 : 0);
       const col = scoreColor(c);
       const cx  = tx(i), cy = ty(x.staircaseVal);
       fullCtx.fillStyle = col;
       if (x.trialType === 'probe') {
-        // purple diamond
         fullCtx.fillStyle = 'rgba(176,106,255,0.85)';
         const r = 5;
         fullCtx.beginPath();
@@ -1347,7 +1383,6 @@ function drawFullChart(fit) {
       }
     });
 
-    // Rev threshold line
     const rvSlice = session.revVals.slice(-6);
     if (rvSlice.length >= 2) {
       const thr = rvSlice.reduce((a,b)=>a+b,0)/rvSlice.length;
@@ -1362,7 +1397,6 @@ function drawFullChart(fit) {
       fullCtx.fillText('rev̄', pad.l+3, yy-1);
     }
 
-    // Fit threshold line
     if (fit) {
       const yy = ty(fit.mu);
       fullCtx.setLineDash([3,3]);
@@ -1382,7 +1416,7 @@ function drawFullChart(fit) {
     fullCtx.fillText('◆ = probe', pad.l+gw-48, pad.t+2);
   }
 
-  // ── PSYCHOMETRIC panel (all trials including probes) ──
+  // ── PSYCHOMETRIC panel ──
   if (h.length >= 4) {
     const oy  = CH_STAIR + GAP;
     const ch  = CH_PSY;
@@ -1395,7 +1429,6 @@ function drawFullChart(fit) {
     const px = d => pad.l + ((d - dmin) / dRange) * gw;
     const py = p => oy + pad.t + gh - p * gh;
 
-    // Grid
     fullCtx.strokeStyle='rgba(24,30,48,0.9)'; fullCtx.lineWidth=1;
     [0, 0.25, 0.5, 0.75, 1].forEach(p => {
       const y = py(p);
@@ -1405,7 +1438,6 @@ function drawFullChart(fit) {
       fullCtx.fillText(`${Math.round(p*100)}%`, pad.l-3, y);
     });
 
-    // x-axis labels
     const lim = DIM_LIMITS[session.cfg.staircaseDim];
     fullCtx.fillStyle='rgba(72,83,110,0.65)'; fullCtx.font=`9px 'Share Tech Mono',monospace`;
     fullCtx.textAlign='center'; fullCtx.textBaseline='top';
@@ -1415,7 +1447,6 @@ function drawFullChart(fit) {
       fullCtx.fillText(label, px(d), oy+pad.t+gh+3);
     }
 
-    // Logistic curve
     if (fit) {
       fullCtx.beginPath(); fullCtx.strokeStyle='rgba(255,208,96,0.7)'; fullCtx.lineWidth=1.8;
       for (let xi=0; xi<=gw; xi++) {
@@ -1426,7 +1457,6 @@ function drawFullChart(fit) {
       }
       fullCtx.stroke();
 
-      // 75% threshold marker
       const x75 = px(fit.mu);
       fullCtx.setLineDash([3,3]);
       fullCtx.strokeStyle='rgba(255,208,96,0.4)'; fullCtx.lineWidth=1;
@@ -1439,7 +1469,6 @@ function drawFullChart(fit) {
       fullCtx.fillText(slopeLabel, pad.l+gw-2, oy+pad.t+2);
     }
 
-    // Raw scatter — all trials
     h.forEach(x => {
       const c   = x.correctedScore !== undefined ? x.correctedScore : (x.aboveThreshold ? 1 : 0);
       const jitter = (Math.random()-0.5)*4;
@@ -1514,12 +1543,11 @@ function loop(ts) {
 // ════════════════════════════════════════
 // TRIAL FLOW
 // ════════════════════════════════════════
-let currentProbeLevel = null;  // null = staircase, else 'floor'|'hard'|'near'|'easy'|'ceiling'
+let currentProbeLevel = null;
 
 function startTrial() {
   selected.clear();
 
-  // Decide if this is a probe trial
   if (isThisProbeTrialDue(session)) {
     currentProbeLevel = PROBE_LEVELS[session.nextProbeIdx % PROBE_LEVELS.length];
     session.lastProbeAt = session.history.filter(h => h.trialType === 'staircase').length;
@@ -1541,7 +1569,6 @@ function startTrial() {
     targets.add(Math.floor(Math.random() * currentTrialParams.numBalls));
   physics._lastSample = null;
 
-  // UI reset
   document.getElementById('trial-overlay').classList.add('hidden');
   document.getElementById('confirm-btn').style.display = 'none';
   document.getElementById('arena-label').style.display = 'block';
@@ -1549,7 +1576,6 @@ function startTrial() {
   document.getElementById('countdown-num').textContent = '3';
   document.getElementById('hud-trial').textContent     = session.trialCount + 1;
 
-  // Probe badge
   const badge = document.getElementById('probe-badge');
   if (currentProbeLevel) {
     badge.style.display = 'block';
@@ -1558,7 +1584,6 @@ function startTrial() {
     badge.style.display = 'none';
   }
 
-  // HUD val pill
   const dim = cfg.staircaseDim;
   const lim = DIM_LIMITS[dim];
   const valLabel = dim === 'duration' ? 'Dur' : dim === 'speed' ? 'Spd' : dim === 'balls' ? 'Balls' : 'Dist';
@@ -1618,7 +1643,6 @@ function submitResponse() {
     if (isRev) { session.reversals++; session.revVals.push(trialVal); }
     session.currentVal = stepVal(session.currentVal, aboveThreshold, session.reversals);
   } else {
-    // Advance probe cycle
     session.nextProbeIdx++;
   }
 
@@ -1627,6 +1651,7 @@ function submitResponse() {
     staircaseDim:   cfg.staircaseDim,
     trialType:      isProbe ? 'probe' : 'staircase',
     probeLevel:     probeLevel,
+    probeStage:     isProbe ? Math.min(2, session.reversals) : null,
     staircaseVal:   trialVal,
     duration:       tp.duration,
     numBalls:       tp.numBalls,
@@ -1657,7 +1682,6 @@ function submitResponse() {
   renderBalls('feedback');
   drawMiniChart();
 
-  // HUD progress
   const progLabel = document.getElementById('hud-prog-label');
   const progVal   = document.getElementById('hud-rev');
   if (cfg.stopMode === 'reversals') {
@@ -1702,7 +1726,13 @@ function submitResponse() {
   const valStr = dim === 'duration' ? Math.round(lastH.staircaseVal) + ' ms'
                : Math.round(lastH.staircaseVal) + lim.unit;
   const stepPct = Math.round((currentStep(session.reversals) - 1) * 100);
-  const probeBadge = isProbe ? `<br><span style="font-size:0.68rem;color:var(--purple)">◆ probe · ${probeLevel}</span>` : '';
+
+  // Show probe stage info in overlay if it's a floor/ceiling probe
+  let probeBadge = '';
+  if (isProbe) {
+    const stageLabel = lastH.probeStage === 0 ? 'pre-rev' : lastH.probeStage === 1 ? '±100%' : '±200%';
+    probeBadge = `<br><span style="font-size:0.68rem;color:var(--purple)">◆ probe · ${probeLevel} · stage ${stageLabel}</span>`;
+  }
 
   document.getElementById('ov-body').innerHTML =
     `${lim.label}: <strong><span class="hi">${valStr}</span></strong> &nbsp;·&nbsp; ${progressLine}
@@ -1903,21 +1933,21 @@ document.getElementById('btn-csv').addEventListener('click', () => {
     `# Accuracy_pct,${session.trialCount ? Math.round(session.correctCount/session.trialCount*100) : ''}`,
     '#',
     '# --- TRIAL SUMMARY ---',
-    'trial,trial_type,probe_level,staircase_dim,staircase_val,duration_ms,numBalls,numTargets,speed_px_s,hits,raw_score,chance_score,corrected_score,above_threshold,reversal,step_mult',
+    'trial,trial_type,probe_level,probe_stage,staircase_dim,staircase_val,duration_ms,numBalls,numTargets,speed_px_s,hits,raw_score,chance_score,corrected_score,above_threshold,reversal,step_mult',
   ];
   let lo = null;
   session.history.forEach(h => {
     const rev = (h.trialType === 'staircase' && lo !== null && lo !== h.aboveThreshold) ? 1 : 0;
     if (h.trialType === 'staircase') lo = h.aboveThreshold;
-    lines.push(`${h.trial},${h.trialType},${h.probeLevel ?? ''},${h.staircaseDim},${Math.round(h.staircaseVal)},${Math.round(h.duration)},${h.numBalls},${h.numTargets},${h.speed},${h.hits ?? ''},${(h.rawScore ?? '').toString()},${(h.chanceScore ?? '').toString()},${(h.correctedScore ?? '').toString()},${h.aboveThreshold ? 1 : 0},${rev},${h.step.toFixed(2)}`);
+    lines.push(`${h.trial},${h.trialType},${h.probeLevel ?? ''},${h.probeStage ?? ''},${h.staircaseDim},${Math.round(h.staircaseVal)},${Math.round(h.duration)},${h.numBalls},${h.numTargets},${h.speed},${h.hits ?? ''},${(h.rawScore ?? '').toString()},${(h.chanceScore ?? '').toString()},${(h.correctedScore ?? '').toString()},${h.aboveThreshold ? 1 : 0},${rev},${h.step.toFixed(2)}`);
   });
 
   lines.push('', '# --- PER-BALL STATS ---');
-  lines.push('trial,trial_type,probe_level,staircase_val,hits,corrected_score,ball_id,is_target,was_selected,dist_px,collisions,occlusions,min_nn_dist_px');
+  lines.push('trial,trial_type,probe_level,probe_stage,staircase_val,hits,corrected_score,ball_id,is_target,was_selected,dist_px,collisions,occlusions,min_nn_dist_px');
   session.history.forEach(h => {
     if (!h.balls) return;
     h.balls.forEach(b => {
-      lines.push(`${h.trial},${h.trialType},${h.probeLevel ?? ''},${Math.round(h.staircaseVal)},${h.hits ?? ''},${(h.correctedScore ?? '').toString()},${b.id},${b.isTarget?1:0},${b.wasSelected?1:0},${b.dist},${b.collisions},${b.occlusions},${b.minNN ?? ''}`);
+      lines.push(`${h.trial},${h.trialType},${h.probeLevel ?? ''},${h.probeStage ?? ''},${Math.round(h.staircaseVal)},${h.hits ?? ''},${(h.correctedScore ?? '').toString()},${b.id},${b.isTarget?1:0},${b.wasSelected?1:0},${b.dist},${b.collisions},${b.occlusions},${b.minNN ?? ''}`);
     });
   });
 
@@ -1944,6 +1974,7 @@ document.getElementById('btn-json').addEventListener('click', () => {
       trial:          h.trial,
       trialType:      h.trialType,
       probeLevel:     h.probeLevel,
+      probeStage:     h.probeStage,
       staircaseDim:   h.staircaseDim,
       staircaseVal:   Math.round(h.staircaseVal),
       duration:       Math.round(h.duration),
