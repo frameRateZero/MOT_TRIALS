@@ -1,0 +1,2132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#080a0d">
+<link rel="manifest" href="./manifest.json">
+<title>MOT·JND</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --bg:      #080a0d;
+  --panel:   #0f1218;
+  --card:    #131720;
+  --border:  #1c2235;
+  --accent:  #00d4ff;
+  --red:     #ff4060;
+  --green:   #00e89a;
+  --yellow:  #ffd060;
+  --purple:  #b06aff;
+  --text:    #cdd5e8;
+  --dim:     #48536e;
+  --mono:    'Share Tech Mono', monospace;
+  --sans:    'DM Sans', sans-serif;
+  --safe-t:  env(safe-area-inset-top, 0px);
+  --safe-b:  env(safe-area-inset-bottom, 0px);
+  --safe-l:  env(safe-area-inset-left, 0px);
+  --safe-r:  env(safe-area-inset-right, 0px);
+}
+*, *::before, *::after {
+  box-sizing: border-box; margin: 0; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-weight: 300;
+  overflow: hidden; position: fixed;
+}
+
+/* ── PAGE SYSTEM ── */
+.page {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease;
+  overflow: hidden;
+}
+.page.active { opacity: 1; pointer-events: all; }
+
+.scroll-body {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 18px 18px 24px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+/* ── TOP BAR ── */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 18px 11px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel); flex-shrink: 0;
+}
+.top-bar .logo {
+  font-family: var(--mono); font-size: 0.9rem;
+  color: var(--accent); letter-spacing: 0.18em;
+}
+.top-bar .sub { font-size: 0.72rem; color: var(--dim); letter-spacing: 0.04em; }
+
+/* ── CARD ── */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 4px; padding: 14px 16px;
+}
+.section-label {
+  font-family: var(--mono); font-size: 0.63rem;
+  color: var(--dim); letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* ── SLIDER ── */
+.slider-item {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.slider-item:last-child { border-bottom: none; padding-bottom: 0; }
+.slider-item:first-child { padding-top: 0; }
+.slider-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.slider-name { font-size: 0.88rem; color: var(--text); }
+.slider-val {
+  font-family: var(--mono); font-size: 0.95rem; color: var(--accent);
+  text-align: right; min-width: 80px;
+}
+.slider-sub { font-size: 0.7rem; color: var(--dim); margin-top: -4px; text-align: right; }
+
+input[type=range] {
+  -webkit-appearance: none; width: 100%; height: 36px;
+  background: transparent; cursor: pointer; outline: none;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 3px; background: var(--border); border-radius: 2px;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); margin-top: -12px;
+  box-shadow: 0 0 10px rgba(0,212,255,0.38);
+}
+
+/* ── TOGGLE ROW ── */
+.toggle-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+}
+.toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+.toggle-row:first-child { padding-top: 0; }
+.toggle-label { font-size: 0.88rem; color: var(--text); }
+.toggle-sub   { font-size: 0.72rem; color: var(--dim); margin-top: 2px; }
+
+.toggle {
+  position: relative; width: 50px; height: 28px; flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: var(--border); border-radius: 14px;
+  transition: background 0.2s; cursor: pointer;
+}
+.toggle input:checked + .toggle-track { background: var(--accent); }
+.toggle-thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; transition: transform 0.2s;
+  pointer-events: none;
+}
+.toggle input:checked ~ .toggle-thumb { transform: translateX(22px); }
+
+/* ── BUTTONS ── */
+.btn {
+  font-family: var(--mono); font-size: 0.84rem;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  background: transparent; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 2px;
+  padding: 0 20px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; width: 100%; user-select: none;
+  transition: background 0.1s, color 0.1s;
+  -webkit-appearance: none;
+}
+.btn:active { background: var(--accent); color: var(--bg); }
+.btn.ghost  { color: var(--dim); border-color: var(--border); }
+.btn.ghost:active { background: var(--border); color: var(--text); }
+.btn.sm     { height: 44px; font-size: 0.76rem; }
+
+.footer {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--panel); flex-shrink: 0;
+  display: flex; gap: 10px;
+}
+
+.info-box {
+  background: rgba(0,212,255,0.04);
+  border: 1px solid rgba(0,212,255,0.14);
+  border-radius: 4px; padding: 12px 14px;
+  font-size: 0.82rem; color: var(--dim); line-height: 1.65;
+}
+.info-box strong { color: var(--text); font-weight: 500; }
+.info-box .ref {
+  display: inline-block; margin-top: 8px;
+  font-family: var(--mono); font-size: 0.7rem;
+  color: var(--accent); opacity: 0.7;
+}
+
+.slider-track-wrap { position: relative; }
+.pylyshyn-marker {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 2px; height: 14px; background: var(--yellow);
+  border-radius: 1px; pointer-events: none;
+}
+.pylyshyn-label {
+  font-family: var(--mono); font-size: 0.6rem;
+  color: var(--yellow); position: absolute; top: 100%;
+  margin-top: 1px; white-space: nowrap; transform: translateX(-50%);
+}
+
+/* ── STOPPING-MODE PILL BUTTONS ── */
+.stop-mode-btn {
+  flex: 1; font-family: var(--mono); font-size: 0.72rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--card); color: var(--dim);
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 7px 4px; cursor: pointer; transition: all 0.15s;
+  -webkit-appearance: none;
+}
+.stop-mode-btn.active {
+  background: rgba(0,212,255,0.1); color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ══════════════════════════
+   TRIAL PAGE
+══════════════════════════ */
+#page-trial {
+  padding: 0 !important;
+  background: #060c10;
+  display: flex; flex-direction: column;
+}
+#trial-hud {
+  flex-shrink: 0;
+  z-index: 10; display: flex; align-items: center;
+  gap: 8px; padding: 8px 14px 7px;
+  background: rgba(6,12,16,0.92);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.hud-pill {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 3px; padding: 3px 9px;
+  display: flex; flex-direction: column; align-items: center;
+  flex-shrink: 0;
+}
+.hud-pill .hl { font-size: 0.52rem; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; }
+.hud-pill .hv { font-family: var(--mono); font-size: 0.88rem; color: var(--accent); line-height: 1.2; }
+
+#mini-chart-canvas { flex: 1; min-width: 0; height: 34px; }
+
+#arena-outer {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #060c10;
+}
+#arena-wrap {
+  position: relative;
+  background: #060c10;
+  overflow: hidden;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+#arena-grid {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+}
+
+#fix-cross {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; z-index: 10;
+}
+#fix-v { position: absolute; left: 50%; top: -11px; width: 2px; height: 22px; background: #fff; transform: translateX(-50%); }
+#fix-h { position: absolute; top: 50%; left: -11px; height: 2px; width: 22px; background: #fff; transform: translateY(-50%); }
+#fix-cross.flash #fix-v { width: 3px; height: 28px; top: -14px; background: #00ffcc; transition: all 0.06s; }
+#fix-cross.flash #fix-h { height: 3px; width: 28px; left: -14px; background: #00ffcc; transition: all 0.06s; }
+
+.mot-ball {
+  position: absolute; border-radius: 50%;
+  transition: border-color 0.1s, box-shadow 0.1s, background 0.1s;
+  z-index: 5;
+}
+
+#arena-label {
+  position: absolute; bottom: 10px; left: 0; right: 0;
+  text-align: center; font-size: 10px; color: #00c9a7;
+  letter-spacing: 2px; pointer-events: none;
+  font-family: 'Share Tech Mono', monospace;
+  display: none; z-index: 15;
+}
+
+/* Probe badge overlay */
+#probe-badge {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(176,106,255,0.15);
+  border: 1px solid rgba(176,106,255,0.45);
+  border-radius: 3px; padding: 3px 9px;
+  font-family: var(--mono); font-size: 0.62rem;
+  color: var(--purple); letter-spacing: 0.1em;
+  pointer-events: none; z-index: 16;
+  display: none;
+}
+
+#countdown-layer {
+  position: absolute; inset: 0; z-index: 14;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+#countdown-num {
+  font-family: var(--mono);
+  font-size: min(35vw, 180px);
+  color: rgba(0,201,167,0.13); line-height: 1;
+  user-select: none;
+}
+
+#progress-bar-wrap {
+  flex-shrink: 0; height: 4px; background: rgba(0,201,167,0.08);
+}
+#progress-bar {
+  height: 2px; background: rgba(0,201,167,0.72); width: 0%; transition: none;
+}
+
+#arena-footer {
+  flex-shrink: 0;
+  padding: 10px 16px 8px;
+  background: #060c10;
+  border-top: 1px solid rgba(28,34,53,0.5);
+  display: flex; flex-direction: column; gap: 8px;
+}
+#confirm-btn {
+  display: none; width: 100%;
+  background: transparent; border: 1px solid #00c9a7;
+  color: #00c9a7; padding: 11px 0;
+  font-size: 10px; letter-spacing: 3px;
+  cursor: pointer; font-family: 'Share Tech Mono', monospace;
+  border-radius: 3px; -webkit-appearance: none;
+  touch-action: manipulation; text-transform: uppercase;
+}
+
+#trial-overlay {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  background: rgba(6,12,16,0.94);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  padding: 28px 22px;
+}
+#trial-overlay.hidden { display: none; }
+.ov-result {
+  font-family: var(--mono); font-size: 2.1rem; letter-spacing: 0.05em;
+}
+.ov-result.ok      { color: var(--green); }
+.ov-result.bad     { color: var(--red); }
+.ov-result.partial { color: var(--yellow); }
+
+.score-row {
+  display: inline-flex; gap: 10px; margin-top: 5px; align-items: flex-end;
+}
+.score-tile {
+  display: flex; flex-direction: column; align-items: center;
+  font-family: var(--mono); font-size: 1.1rem; color: var(--accent);
+}
+.score-tile.dim      { color: var(--dim); font-size: 0.9rem; }
+.score-tile.good     { color: var(--green); }
+.score-tile.bad2     { color: var(--red); }
+.score-sub {
+  font-size: 0.56rem; color: var(--dim); letter-spacing: 0.08em;
+  text-transform: uppercase; margin-top: 1px;
+}
+.ov-body {
+  font-size: 0.88rem; color: var(--dim);
+  text-align: center; line-height: 1.72; max-width: 310px;
+}
+.ov-body strong { color: var(--text); font-weight: 500; }
+.ov-body .hi   { color: var(--accent); }
+.ov-body .rev  { font-size: 0.73rem; color: var(--dim); }
+
+/* ══════════════════════════
+   RESULTS PAGE
+══════════════════════════ */
+.results-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.rtile {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 4px; padding: 13px 14px 11px;
+}
+.rtile .rl { font-size: 0.63rem; color: var(--dim); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 3px; }
+.rtile .rv { font-family: var(--mono); font-size: 1.45rem; color: var(--accent); line-height: 1.15; }
+.rtile .ru { font-size: 0.68rem; color: var(--dim); margin-left: 2px; }
+.rtile.wide  { grid-column: span 2; }
+.rtile.green .rv { color: var(--green); }
+
+#full-chart-wrap {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 4px; padding: 14px;
+}
+#full-chart-canvas { width: 100%; display: block; }
+
+.recap-grid {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+}
+.recap-item { font-size: 0.8rem; color: var(--dim); }
+.recap-item span { font-family: var(--mono); color: var(--text); }
+
+.hs-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.hs-row:last-child { border-bottom: none; }
+.hs-row.hs-me { background: rgba(0,212,255,0.05); border-radius: 3px; padding: 7px 6px; margin: 0 -6px; }
+.hs-rank { width: 22px; text-align: center; flex-shrink: 0; }
+.hs-thr  { font-family: var(--mono); color: var(--accent); font-size: 0.95rem; min-width: 48px; }
+.hs-me .hs-thr { color: var(--green); }
+.hs-meta { flex: 1; color: var(--dim); font-size: 0.72rem; }
+.hs-pct  { font-family: var(--mono); font-size: 0.68rem; color: var(--dim); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════
+     PAGE 1 — SETUP
+══════════════════════════ -->
+<div class="page active" id="page-setup">
+  <div class="top-bar">
+    <span class="logo">MOT·JND</span>
+    <span class="sub">Threshold Test</span>
+  </div>
+
+  <div class="scroll-body">
+
+    <!-- Stimulus -->
+    <div>
+      <div class="section-label">Stimulus</div>
+      <div class="card">
+
+        <div class="slider-item">
+          <div class="slider-header">
+            <span class="slider-name">Total Balls</span>
+            <span class="slider-val" id="lbl-balls">8</span>
+          </div>
+          <input type="range" id="sl-balls" min="4" max="14" step="1" value="8">
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-header">
+            <span class="slider-name">Targets to Track</span>
+            <span class="slider-val" id="lbl-targets">3</span>
+          </div>
+          <input type="range" id="sl-targets" min="1" max="6" step="1" value="3">
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-header">
+            <span class="slider-name">Ball Speed</span>
+            <div>
+              <div class="slider-val" id="lbl-speed">84 px/s</div>
+              <div class="slider-sub" id="lbl-speed-deg">≈ 2.3°/s</div>
+            </div>
+          </div>
+          <div class="slider-track-wrap" id="speed-track-wrap">
+            <input type="range" id="sl-speed" min="20" max="400" step="4" value="84">
+          </div>
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-header">
+            <span class="slider-name">Viewing Distance</span>
+            <span class="slider-val" id="lbl-dist">35 cm</span>
+          </div>
+          <input type="range" id="sl-dist" min="20" max="80" step="1" value="35">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Physics -->
+    <div>
+      <div class="section-label">Physics</div>
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Ball–Ball Collisions</div>
+            <div class="toggle-sub">Elastic bounce when balls meet</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="tog-collisions">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Direction Changes</div>
+            <div class="toggle-sub">Random redirect every ~500 ms (P&S 1988)</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="tog-dirchange" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Staircase -->
+    <div>
+      <div class="section-label">Staircase</div>
+      <div class="card">
+
+        <div class="slider-item">
+          <div class="slider-header" style="margin-bottom:10px">
+            <span class="slider-name">Staircased Dimension</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px">
+            <button class="stop-mode-btn active" data-dim="duration">Duration</button>
+            <button class="stop-mode-btn"        data-dim="distractors">Distractors</button>
+            <button class="stop-mode-btn"        data-dim="balls">Total Balls</button>
+            <button class="stop-mode-btn"        data-dim="speed">Speed</button>
+          </div>
+          <div id="dim-hint" style="font-size:0.7rem;color:var(--dim);margin-top:4px;line-height:1.5">
+            Duration of tracking phase staircases. Other parameters fixed.
+          </div>
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-header">
+            <span class="slider-name" id="lbl-initval-name">Starting Duration</span>
+            <span class="slider-val" id="lbl-initdur">1500 ms</span>
+          </div>
+          <input type="range" id="sl-initdur" min="400" max="30000" step="100" value="1500">
+          <div id="initdur-hints" style="display:flex;justify-content:space-between;margin-top:-2px;padding:0 2px">
+            <span style="font-size:0.62rem;color:var(--green)">easy</span>
+            <span style="font-size:0.62rem;color:var(--yellow)">typical&nbsp;~10s</span>
+            <span style="font-size:0.62rem;color:var(--red)">hard&nbsp;~15s</span>
+          </div>
+        </div>
+
+        <!-- Stopping rule -->
+        <div class="slider-item" style="border:none;padding-bottom:0">
+          <div class="slider-header" style="margin-bottom:10px">
+            <span class="slider-name">Stopping Rule</span>
+          </div>
+          <div style="display:flex;gap:7px;margin-bottom:12px">
+            <button class="stop-mode-btn active" data-mode="reversals">Reversals</button>
+            <button class="stop-mode-btn"        data-mode="trials">Trial Count</button>
+            <button class="stop-mode-btn"        data-mode="manual">Manual</button>
+          </div>
+
+          <div id="stop-sub-reversals">
+            <div class="slider-header">
+              <span class="slider-name" style="font-size:0.8rem;color:var(--dim)">Reversal target</span>
+              <span class="slider-val" id="lbl-rev-stop">8</span>
+            </div>
+            <input type="range" id="sl-rev-stop" min="4" max="16" step="2" value="8">
+          </div>
+
+          <div id="stop-sub-trials" style="display:none">
+            <div class="slider-header">
+              <span class="slider-name" style="font-size:0.8rem;color:var(--dim)">Number of trials</span>
+              <span class="slider-val" id="lbl-trial-limit">20</span>
+            </div>
+            <input type="range" id="sl-trial-limit" min="5" max="60" step="5" value="20">
+          </div>
+
+          <div id="stop-sub-manual" style="display:none;font-size:0.76rem;color:var(--dim);line-height:1.55;padding-top:2px">
+            Session runs until you tap <strong style="color:var(--text)">End Session</strong> after any trial.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Full-range probes -->
+    <div>
+      <div class="section-label">Full-Range Probes</div>
+      <div class="card">
+        <div class="toggle-row" style="padding-top:0">
+          <div>
+            <div class="toggle-label">Enable Probe Trials</div>
+            <div class="toggle-sub">Sample 0%–100% range, not just staircase zone</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="tog-probes" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div id="probe-settings" style="padding-top:10px;border-top:1px solid var(--border);margin-top:4px">
+          <div class="slider-item" style="padding-top:8px">
+            <div class="slider-header">
+              <span class="slider-name" style="font-size:0.82rem">Probe frequency</span>
+              <span class="slider-val" id="lbl-probe-freq">1 in 5</span>
+            </div>
+            <input type="range" id="sl-probe-freq" min="3" max="10" step="1" value="5">
+            <div style="font-size:0.68rem;color:var(--dim);margin-top:2px">Insert a probe trial every N staircase trials</div>
+          </div>
+          <div style="font-size:0.72rem;color:var(--dim);line-height:1.6;padding-top:6px">
+            Probes are shown as <span style="color:var(--purple);font-family:var(--mono)">◆ PROBE</span> in the HUD.
+            They cover: <strong style="color:var(--text)">floor</strong> (0 targets possible),
+            <strong style="color:var(--text)">easy</strong> (3× threshold),
+            <strong style="color:var(--text)">near</strong> (1.5×),
+            <strong style="color:var(--text)">hard</strong> (0.5×), and
+            <strong style="color:var(--text)">ceiling</strong> (trivially long).
+            These are not counted as reversals.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="info-box">
+      <strong>Speed Reference</strong><br>
+      Pylyshyn &amp; Storm (1988) used balls moving at approximately <strong>2.3°/s</strong>.
+      The yellow marker on the speed slider shows this rate at your chosen viewing distance.
+      At 35 cm on an iPhone (~67 mm wide arena) that ≈ <strong>84 px/s</strong>.<br>
+      <span class="ref">P&S 1988 · Spatial Vision 3(3):179–197</span>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <button class="btn" id="btn-begin">Begin Session</button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════
+     PAGE 2 — TRIAL
+══════════════════════════ -->
+<div class="page" id="page-trial">
+
+  <div id="trial-hud">
+    <div class="hud-pill">
+      <span class="hl">Trial</span>
+      <span class="hv" id="hud-trial">1</span>
+    </div>
+    <div class="hud-pill">
+      <span class="hl" id="hud-val-label">Dur</span>
+      <span class="hv" id="hud-dur">—</span>
+    </div>
+    <canvas id="mini-chart-canvas"></canvas>
+    <div class="hud-pill">
+      <span class="hl" id="hud-prog-label">Rev</span>
+      <span class="hv" id="hud-rev">0/8</span>
+    </div>
+  </div>
+
+  <div id="arena-outer">
+    <div id="arena-wrap">
+      <canvas id="arena-grid"></canvas>
+      <div id="fix-cross">
+        <div id="fix-v"></div>
+        <div id="fix-h"></div>
+      </div>
+      <div id="arena-label"></div>
+      <div id="probe-badge">◆ PROBE</div>
+      <div id="countdown-layer">
+        <div id="countdown-num"></div>
+      </div>
+
+      <div id="trial-overlay" class="hidden">
+        <div class="ov-result" id="ov-result"></div>
+        <div class="ov-body"   id="ov-body"></div>
+        <button class="btn"    id="btn-next-trial" style="max-width:280px">Next Trial</button>
+        <button class="btn sm" id="btn-end-session" style="max-width:280px;display:none;border-color:var(--green);color:var(--green)">End Session → Results</button>
+        <button class="btn ghost sm" id="btn-abort" style="max-width:280px">Abandon Session</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+
+  <div id="arena-footer">
+    <button id="confirm-btn">Confirm Selection</button>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════
+     PAGE 3 — RESULTS
+══════════════════════════ -->
+<div class="page" id="page-results">
+  <div class="top-bar">
+    <span class="logo">Results</span>
+    <span class="sub" id="res-time"></span>
+  </div>
+
+  <div class="scroll-body">
+
+    <div class="results-grid">
+      <div class="rtile green">
+        <div class="rl">Rev Threshold</div>
+        <div class="rv" id="res-thr">—<span class="ru">ms</span></div>
+      </div>
+      <div class="rtile">
+        <div class="rl">Accuracy</div>
+        <div class="rv" id="res-acc">—<span class="ru">%</span></div>
+      </div>
+      <div class="rtile">
+        <div class="rl">Trials</div>
+        <div class="rv" id="res-trials">—</div>
+      </div>
+      <div class="rtile">
+        <div class="rl">Reversals</div>
+        <div class="rv" id="res-rev">—</div>
+      </div>
+      <div class="rtile" style="border-color:rgba(255,208,96,0.3)">
+        <div class="rl" style="color:var(--yellow);opacity:0.7">Fit Threshold</div>
+        <div class="rv" id="res-fit-thr" style="color:var(--yellow)">—<span class="ru">ms</span></div>
+      </div>
+      <div class="rtile" style="border-color:rgba(255,208,96,0.3)">
+        <div class="rl" style="color:var(--yellow);opacity:0.7">Slope k</div>
+        <div class="rv" id="res-fit-slope" style="color:var(--yellow);font-size:1.1rem">—</div>
+      </div>
+      <div class="rtile wide">
+        <div class="rl">Range Covered</div>
+        <div class="rv" id="res-range" style="font-size:1.05rem">—</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Staircase + Psychometric</div>
+      <div id="full-chart-wrap">
+        <canvas id="full-chart-canvas" height="293"></canvas>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Personal Best</div>
+      <div class="card">
+        <div id="high-scores-list"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Session Settings</div>
+      <div class="card">
+        <div class="recap-grid" id="recap-grid"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <button class="btn ghost" id="btn-new-session" style="flex:1">New Session</button>
+    <button class="btn ghost" id="btn-json"        style="flex:1">JSON</button>
+    <button class="btn"       id="btn-csv"         style="flex:1">CSV</button>
+  </div>
+</div>
+
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════
+const HIGHLIGHT_MS  = 2200;
+const MIN_DUR       = 150;
+const MAX_DUR       = 30000;
+const REVERSAL_STOP = 8;
+const DIR_CHANGE_INTERVAL = 480;
+const IPHONE_WIDTH_MM = 67;
+
+const STEP_SCHEDULE = [
+  { fromRev: 0,  step: 1.60 },
+  { fromRev: 2,  step: 1.40 },
+  { fromRev: 4,  step: 1.25 },
+  { fromRev: 6,  step: 1.15 },
+];
+
+function currentStep(reversals) {
+  let s = STEP_SCHEDULE[0].step;
+  for (const entry of STEP_SCHEDULE)
+    if (reversals >= entry.fromRev) s = entry.step;
+  return s;
+}
+
+const DIM_LIMITS = {
+  duration:    { min: 150,  max: 30000, unit: 'ms',   label: 'Duration' },
+  distractors: { min: 1,    max: 12,    unit: '',      label: 'Distractors' },
+  balls:       { min: 3,    max: 16,    unit: '',      label: 'Total Balls' },
+  speed:       { min: 20,   max: 400,   unit: ' px/s', label: 'Speed' },
+};
+
+// ════════════════════════════════════════
+// FULL-RANGE PROBE SYSTEM
+// ════════════════════════════════════════
+//
+// Probe levels span the full psychometric range:
+//   floor   → 0% correct (below random — use 0 targets so forced failure)
+//   hard    → ~0.3× estimated threshold  (should be ~20–30% correct)
+//   near    → ~0.6× threshold            (should be ~50% — near threshold)
+//   easy    → ~2.0× threshold            (should be ~80–90%)
+//   ceiling → very easy (3s+ or 1 distractor)  → ~100%
+//
+// Probes interleave with the staircase every cfg.probeFreq staircase trials.
+// They rotate through all 5 levels in a fixed cycle.
+
+const PROBE_LEVELS = ['floor', 'hard', 'near', 'easy', 'ceiling'];
+
+// Compute the actual staircase value for a given probe level.
+// Uses the running estimate of threshold from reversals or init val.
+function probeValue(level, session) {
+  const dim = session.cfg.staircaseDim;
+  const lim = DIM_LIMITS[dim];
+
+  // Best current threshold estimate
+  const rvs = session.revVals;
+  const est = rvs.length >= 2
+    ? rvs.slice(-Math.min(6, rvs.length)).reduce((a, b) => a + b, 0) / Math.min(6, rvs.length)
+    : session.currentVal;
+
+  const isHardDim = (dim === 'duration' || dim === 'speed');
+
+  // For duration/speed: bigger = easier; for balls/distractors: smaller = easier
+  if (isHardDim) {
+    // duration: longer = easier, shorter = harder
+    switch (level) {
+      case 'floor':   return lim.min;                               // 0% — too short to track anything
+      case 'hard':    return Math.max(lim.min, est * 0.30);
+      case 'near':    return Math.max(lim.min, est * 0.65);
+      case 'easy':    return Math.min(lim.max, est * 2.0);
+      case 'ceiling': return lim.max;                              // trivially easy
+    }
+  } else {
+    // balls/distractors: fewer = easier
+    switch (level) {
+      case 'floor':   return lim.max;                               // too many — 0%
+      case 'hard':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.5));
+      case 'near':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.2));
+      case 'easy':    return Math.max(lim.min, Math.round(est - (est - lim.min) * 0.5));
+      case 'ceiling': return lim.min;                              // trivially easy
+    }
+  }
+  return est;
+}
+
+function isThisProbeTrialDue(session) {
+  if (!session.cfg.enableProbes) return false;
+  // Count staircase trials so far
+  const stairCount = session.history.filter(h => h.trialType === 'staircase').length;
+  // Due when stairCount is a multiple of probeFreq AND we haven't placed a probe at this count yet
+  if (stairCount === 0) return false;
+  return (stairCount % session.cfg.probeFreq) === 0 && session.lastProbeAt !== stairCount;
+}
+
+// ════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════
+let cfg = {
+  numBalls:     8,
+  numTargets:   3,
+  speed:        84,
+  viewDist:     35,
+  initDur:      1500,
+  collisions:   false,
+  dirChanges:   true,
+  stopMode:     'reversals',
+  reversalStop: 8,
+  trialLimit:   20,
+  staircaseDim: 'duration',
+  initVal:      1500,
+  enableProbes: true,
+  probeFreq:    5,
+};
+
+// ════════════════════════════════════════
+// SESSION
+// ════════════════════════════════════════
+let session = null;
+
+function newSession() {
+  return {
+    trialCount:    0,
+    correctCount:  0,
+    reversals:     0,
+    lastOutcome:   null,
+    currentVal:    cfg.initVal,
+    history:       [],
+    revVals:       [],
+    nextProbeIdx:  0,         // cycles through PROBE_LEVELS
+    lastProbeAt:   -1,        // staircase trial count when last probe was inserted
+    startTime:     new Date(),
+    cfg:           { ...cfg }
+  };
+}
+
+// Get effective trial parameters for a staircase value
+function trialParams(val) {
+  const p = {
+    numBalls:   cfg.numBalls,
+    numTargets: cfg.numTargets,
+    speed:      cfg.speed,
+    duration:   cfg.initDur,
+  };
+  switch (cfg.staircaseDim) {
+    case 'duration':
+      p.duration = Math.round(Math.max(MIN_DUR, Math.min(MAX_DUR, val)));
+      break;
+    case 'distractors':
+      p.numBalls = Math.max(cfg.numTargets + 1, cfg.numTargets + Math.round(val));
+      break;
+    case 'balls':
+      p.numBalls = Math.max(cfg.numTargets + 1, Math.round(val));
+      break;
+    case 'speed':
+      p.speed = Math.round(Math.max(DIM_LIMITS.speed.min, Math.min(DIM_LIMITS.speed.max, val)));
+      break;
+  }
+  return p;
+}
+
+function stepVal(val, correct, reversals) {
+  const lim = DIM_LIMITS[cfg.staircaseDim];
+  if (cfg.staircaseDim === 'duration' || cfg.staircaseDim === 'speed') {
+    const s = currentStep(reversals);
+    return correct
+      ? Math.min(val * s,   lim.max)
+      : Math.max(val / s,   lim.min);
+  } else {
+    return correct
+      ? Math.min(val + 1, lim.max)
+      : Math.max(val - 1, lim.min);
+  }
+}
+
+// ════════════════════════════════════════
+// PAGE ROUTING
+// ════════════════════════════════════════
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ════════════════════════════════════════
+// ARENA
+// ════════════════════════════════════════
+const arenaWrap  = document.getElementById('arena-wrap');
+const gridCanvas = document.getElementById('arena-grid');
+const gridCtx    = gridCanvas.getContext('2d');
+const miniEl     = document.getElementById('mini-chart-canvas');
+const miniCtx    = miniEl.getContext('2d');
+const fullEl     = document.getElementById('full-chart-canvas');
+const fullCtx    = fullEl.getContext('2d');
+
+let W = 1, H = 1, BR = 1, HUD_H = 0;
+let ballEls = [];
+
+function sizeArena() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const hudEl = document.getElementById('trial-hud');
+  HUD_H = hudEl ? hudEl.getBoundingClientRect().height : 52;
+  const footerEl = document.getElementById('arena-footer');
+  const footerH  = footerEl ? footerEl.getBoundingClientRect().height : 60;
+  const progressH = 4;
+  const available = vh - HUD_H - footerH - progressH;
+  const sq = Math.min(vw, available);
+
+  W = sq; H = sq;
+  arenaWrap.style.width  = sq + 'px';
+  arenaWrap.style.height = sq + 'px';
+  document.getElementById('arena-outer').style.height = available + 'px';
+
+  gridCanvas.width  = sq;
+  gridCanvas.height = sq;
+  drawGrid();
+
+  BR = Math.max(14, Math.min(28, Math.round(sq * 0.034)));
+
+  const mc = document.getElementById('mini-chart-canvas');
+  mc.width  = mc.parentElement ? (mc.parentElement.clientWidth || 80) : 80;
+  mc.height = 34;
+
+  updateSpeedLabel();
+}
+
+function drawGrid() {
+  const gs = 80;
+  gridCtx.clearRect(0, 0, W, H);
+  gridCtx.strokeStyle = 'rgba(16,22,36,0.7)';
+  gridCtx.lineWidth = 1;
+  for (let x = 0; x < W; x += gs) { gridCtx.beginPath(); gridCtx.moveTo(x,0); gridCtx.lineTo(x,H); gridCtx.stroke(); }
+  for (let y = 0; y < H; y += gs) { gridCtx.beginPath(); gridCtx.moveTo(0,y); gridCtx.lineTo(W,y); gridCtx.stroke(); }
+}
+
+setTimeout(sizeArena, 80);
+let _resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => {
+    sizeArena();
+    if (balls.length) {
+      for (const b of balls) {
+        b.x = Math.max(BR, Math.min(W - BR, b.x));
+        b.y = Math.max(BR, Math.min(H - BR, b.y));
+      }
+    }
+  }, 120);
+});
+
+// ════════════════════════════════════════
+// SPEED ↔ VISUAL ANGLE
+// ════════════════════════════════════════
+function pxsToDegs(pxs) {
+  const screenWidthMm = IPHONE_WIDTH_MM;
+  const distMm        = cfg.viewDist * 10;
+  const arenaMm       = screenWidthMm;
+  const mmpx          = arenaMm / (W || 390);
+  const speedMms      = pxs * mmpx;
+  return (speedMms / distMm) * (180 / Math.PI);
+}
+
+function pylyshynSpeedPx() {
+  const degsTarget = 2.3;
+  const distMm     = cfg.viewDist * 10;
+  const arenaMm    = IPHONE_WIDTH_MM;
+  const speedMms   = Math.tan(degsTarget * Math.PI / 180) * distMm;
+  const mmpx       = arenaMm / (W || 390);
+  return speedMms / mmpx;
+}
+
+function updateSpeedLabel() {
+  const degs = pxsToDegs(cfg.speed).toFixed(1);
+  document.getElementById('lbl-speed').textContent = `${cfg.speed} px/s`;
+  document.getElementById('lbl-speed-deg').textContent = `≈ ${degs}°/s`;
+  updatePylyshynMarker();
+}
+
+function updatePylyshynMarker() {
+  const wrap  = document.getElementById('speed-track-wrap');
+  const sl    = document.getElementById('sl-speed');
+  const min   = parseFloat(sl.min), max = parseFloat(sl.max);
+  const pxRef = pylyshynSpeedPx();
+  const frac  = Math.max(0, Math.min(1, (pxRef - min) / (max - min)));
+  let marker  = wrap.querySelector('.pylyshyn-marker');
+  if (!marker) {
+    marker = document.createElement('div');
+    marker.className = 'pylyshyn-marker';
+    const lbl = document.createElement('div');
+    lbl.className = 'pylyshyn-label';
+    lbl.textContent = 'P&S';
+    marker.appendChild(lbl);
+    wrap.appendChild(marker);
+  }
+  const thumbPx   = 28;
+  const available = (wrap.clientWidth || 300) - thumbPx;
+  marker.style.left = (thumbPx / 2 + frac * available) + 'px';
+}
+
+// ════════════════════════════════════════
+// PHYSICS
+// ════════════════════════════════════════
+let balls    = [];
+let targets  = new Set();
+let selected = new Set();
+let nextDirChange = 0;
+
+function makeBalls(n, spd) {
+  const bs = [];
+  const margin = BR * 3;
+  for (let i = 0; i < n; i++) {
+    let pos, tries = 0;
+    do {
+      pos = {
+        x: margin + Math.random() * (W - margin * 2),
+        y: margin + Math.random() * (H - margin * 2)
+      };
+      tries++;
+    } while (tries < 300 && bs.some(b => Math.hypot(b.x-pos.x, b.y-pos.y) < BR*3));
+    const a = Math.random() * Math.PI * 2;
+    bs.push({
+      x: pos.x, y: pos.y,
+      vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      distTraveled: 0, collisions: 0, occlusions: 0,
+      minNNdist: Infinity, xyLog: []
+    });
+  }
+  return bs;
+}
+
+function physics(dt, now) {
+  const spd = currentTrialParams ? currentTrialParams.speed : cfg.speed;
+
+  if (cfg.dirChanges && now > nextDirChange) {
+    const b = balls[Math.floor(Math.random() * balls.length)];
+    const a = Math.random() * Math.PI * 2;
+    b.vx = Math.cos(a) * spd; b.vy = Math.sin(a) * spd;
+    nextDirChange = now + DIR_CHANGE_INTERVAL * (0.5 + Math.random());
+  }
+
+  for (const b of balls) {
+    const s = Math.hypot(b.vx, b.vy);
+    if (s > 1) { b.vx = (b.vx/s)*spd; b.vy = (b.vy/s)*spd; }
+    const dx = b.vx * dt, dy = b.vy * dt;
+    b.distTraveled += Math.hypot(dx, dy);
+    b.x += dx; b.y += dy;
+    if (b.x < BR)   { b.x = BR;   b.vx =  Math.abs(b.vx); }
+    if (b.x > W-BR) { b.x = W-BR; b.vx = -Math.abs(b.vx); }
+    if (b.y < BR)   { b.y = BR;   b.vy =  Math.abs(b.vy); }
+    if (b.y > H-BR) { b.y = H-BR; b.vy = -Math.abs(b.vy); }
+  }
+
+  const XY_SAMPLE_INTERVAL = 0.10;
+  if (!physics._lastSample || (now/1000 - physics._lastSample) >= XY_SAMPLE_INTERVAL) {
+    physics._lastSample = now / 1000;
+    const t = Math.round(now);
+    for (let i = 0; i < balls.length; i++) {
+      if (trialState === 'tracking') balls[i].xyLog.push({ t, x: Math.round(balls[i].x), y: Math.round(balls[i].y) });
+      let minD = Infinity;
+      for (let j = 0; j < balls.length; j++) {
+        if (i === j) continue;
+        const d = Math.hypot(balls[i].x - balls[j].x, balls[i].y - balls[j].y);
+        if (d < minD) minD = d;
+      }
+      if (minD < balls[i].minNNdist) balls[i].minNNdist = minD;
+      if (minD < BR * 2.5) balls[i].occlusions++;
+    }
+  }
+
+  if (!cfg.collisions) return;
+
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i+1; j < balls.length; j++) {
+      const a = balls[i], b = balls[j];
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const d  = Math.hypot(dx, dy);
+      if (d > 0 && d < BR*2) {
+        const nx = dx/d, ny = dy/d;
+        const ov = BR*2 - d;
+        a.x -= nx*ov/2; a.y -= ny*ov/2;
+        b.x += nx*ov/2; b.y += ny*ov/2;
+        const dv = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+        if (dv < 0) {
+          a.vx += dv*nx; a.vy += dv*ny;
+          b.vx -= dv*nx; b.vy -= dv*ny;
+          a.collisions++; b.collisions++;
+        }
+      }
+    }
+  }
+}
+physics._lastSample = null;
+
+// ════════════════════════════════════════
+// DOM BALL RENDERING
+// ════════════════════════════════════════
+function syncBallEls(n) {
+  while (ballEls.length < n) {
+    const div = document.createElement('div');
+    div.className = 'mot-ball';
+    arenaWrap.appendChild(div);
+    ballEls.push(div);
+  }
+  while (ballEls.length > n) ballEls.pop().remove();
+}
+
+function renderBalls(mode) {
+  syncBallEls(balls.length);
+  balls.forEach((b, i) => {
+    const el    = ballEls[i];
+    const isTgt = targets.has(i);
+    const isSel = selected.has(i);
+    const r     = BR;
+    el.style.left  = (b.x - r) + 'px';
+    el.style.top   = (b.y - r) + 'px';
+    el.style.width = el.style.height = (r * 2) + 'px';
+
+    if (mode === 'highlight' && isTgt) {
+      el.style.background  = '#001a12';
+      el.style.border      = `2.5px solid #00c9a7`;
+      el.style.boxShadow   = '0 0 14px 3px rgba(0,201,167,0.45)';
+      el.style.pointerEvents = 'none';
+    } else if (mode === 'response') {
+      el.style.background  = isSel ? '#1a0008' : '#060e14';
+      el.style.border      = isSel ? `2px solid #ff6b6b` : `1.5px solid #1a2a38`;
+      el.style.boxShadow   = isSel ? '0 0 10px 2px rgba(255,107,107,0.4)' : 'none';
+      el.style.pointerEvents = 'auto';
+      el.style.cursor        = 'pointer';
+      el.ontouchstart = (e) => { e.preventDefault(); e.stopPropagation(); toggleSelect(i); };
+      el.onclick = null;
+    } else if (mode === 'feedback') {
+      el.style.pointerEvents = 'none';
+      if (isTgt && isSel)  { el.style.background='#001a0d'; el.style.border=`2px solid #00e89a`; el.style.boxShadow='0 0 12px 2px rgba(0,232,154,0.45)'; }
+      else if (isTgt)      { el.style.background='#1a1000'; el.style.border=`2px solid #ffd060`; el.style.boxShadow='0 0 10px 2px rgba(255,208,96,0.4)'; }
+      else if (isSel)      { el.style.background='#1a0008'; el.style.border=`2px solid #ff4060`; el.style.boxShadow='0 0 8px 2px rgba(255,64,96,0.35)'; }
+      else                 { el.style.background='#060e14'; el.style.border=`1.5px solid #1a2a38`; el.style.boxShadow='none'; }
+    } else {
+      el.style.background  = '#060e14';
+      el.style.border      = `1.5px solid #1a2a38`;
+      el.style.boxShadow   = 'none';
+      el.style.pointerEvents = 'none';
+      el.ontouchstart = null; el.onclick = null;
+    }
+  });
+}
+
+function toggleSelect(i) {
+  if (trialState !== 'response') return;
+  if (selected.has(i)) {
+    selected.delete(i);
+  } else if (selected.size < currentTrialParams.numTargets) {
+    selected.add(i);
+  }
+  renderBalls('response');
+  updateSelectLabel();
+  const confirmBtn = document.getElementById('confirm-btn');
+  confirmBtn.style.display = selected.size === currentTrialParams.numTargets ? 'block' : 'none';
+}
+
+function updateSelectLabel() {
+  const rem = currentTrialParams.numTargets - selected.size;
+  document.getElementById('arena-label').textContent =
+    rem > 0 ? `SELECT ${rem} TARGET${rem !== 1 ? 'S' : ''}` : 'TAP CONFIRM';
+}
+
+function setProgressBar(frac) {
+  document.getElementById('progress-bar').style.width = Math.min(frac, 1) * 100 + '%';
+}
+
+function flashFixCross(on) {
+  document.getElementById('fix-cross').classList.toggle('flash', on);
+}
+
+// ════════════════════════════════════════
+// MINI CHART
+// ════════════════════════════════════════
+function scoreColor(c) {
+  if (c >= 1.0) return '#00e89a';
+  if (c >= 0.5) return '#00d4ff';
+  if (c >= 0.0) return '#ffd060';
+  return '#ff4060';
+}
+
+function drawMiniChart() {
+  const cw = miniEl.width, ch = miniEl.height;
+  miniCtx.clearRect(0, 0, cw, ch);
+  const h = session ? session.history : [];
+  if (h.length < 2) {
+    miniCtx.fillStyle = 'rgba(72,83,110,0.45)';
+    miniCtx.font = `8px 'Share Tech Mono', monospace`;
+    miniCtx.textAlign = 'center'; miniCtx.textBaseline = 'middle';
+    miniCtx.fillText('···', cw/2, ch/2);
+    return;
+  }
+  const mx = Math.max(...h.map(x => x.staircaseVal));
+  const mn = Math.min(...h.map(x => x.staircaseVal));
+  const rn = mx - mn || 1;
+  const tx = i => (i / (h.length-1)) * cw;
+  const ty = d => ch - ((d - mn) / rn) * ch * 0.84 - ch * 0.06;
+
+  // Connect staircase trials
+  const stairH = h.filter(x => x.trialType === 'staircase');
+  miniCtx.beginPath();
+  miniCtx.strokeStyle = 'rgba(0,212,255,0.4)'; miniCtx.lineWidth = 1.5;
+  stairH.forEach((x, si) => {
+    const i = h.indexOf(x);
+    si === 0 ? miniCtx.moveTo(tx(i), ty(x.staircaseVal)) : miniCtx.lineTo(tx(i), ty(x.staircaseVal));
+  });
+  miniCtx.stroke();
+
+  h.forEach((x, i) => {
+    const c   = x.correctedScore !== undefined ? x.correctedScore : (x.aboveThreshold ? 1 : 0);
+    const col = scoreColor(c);
+    const cx  = tx(i), cy = ty(x.staircaseVal);
+    miniCtx.fillStyle = col;
+    if (x.trialType === 'probe') {
+      // diamond
+      const r = 3;
+      miniCtx.beginPath();
+      miniCtx.moveTo(cx, cy-r); miniCtx.lineTo(cx+r, cy);
+      miniCtx.lineTo(cx, cy+r); miniCtx.lineTo(cx-r, cy);
+      miniCtx.closePath(); miniCtx.fill();
+    } else {
+      miniCtx.beginPath(); miniCtx.arc(cx, cy, 2.3, 0, Math.PI*2); miniCtx.fill();
+    }
+  });
+}
+
+// ════════════════════════════════════════
+// FULL RESULTS CHART
+// ════════════════════════════════════════
+function drawFullChart(fit) {
+  const h    = session ? session.history : [];
+  const wrap = document.getElementById('full-chart-wrap');
+  const cw   = (wrap.clientWidth - 28) || 300;
+  const CH_STAIR = 155, CH_PSY = 130, GAP = 18;
+  const totalH = CH_STAIR + GAP + CH_PSY;
+  fullEl.width  = cw; fullEl.height = totalH;
+  fullCtx.clearRect(0, 0, cw, totalH);
+  if (h.length < 2) return;
+
+  // ── STAIRCASE panel ──
+  {
+    const ch  = CH_STAIR;
+    const pad = { l:42, r:8, t:8, b:20 };
+    const gw  = cw-pad.l-pad.r, gh = ch-pad.t-pad.b;
+    const mx  = Math.max(...h.map(x=>x.staircaseVal))*1.08;
+    const mn  = Math.min(...h.map(x=>x.staircaseVal))*0.90;
+    const rn  = mx-mn || 1;
+    const tx  = i => pad.l + (i/Math.max(h.length-1,1))*gw;
+    const ty  = d => pad.t + gh - ((d-mn)/rn)*gh;
+
+    fullCtx.strokeStyle='rgba(24,30,48,0.9)'; fullCtx.lineWidth=1;
+    for (let t=0;t<=3;t++) {
+      const y=pad.t+(t/3)*gh;
+      fullCtx.beginPath(); fullCtx.moveTo(pad.l,y); fullCtx.lineTo(pad.l+gw,y); fullCtx.stroke();
+      fullCtx.fillStyle='rgba(72,83,110,0.8)';
+      fullCtx.font=`9px 'Share Tech Mono',monospace`;
+      fullCtx.textAlign='right'; fullCtx.textBaseline='middle';
+      fullCtx.fillText(Math.round(mx-(t/3)*rn), pad.l-3, y);
+    }
+    fullCtx.fillStyle='rgba(72,83,110,0.65)';
+    fullCtx.font=`9px 'Share Tech Mono',monospace`;
+    fullCtx.textAlign='center'; fullCtx.textBaseline='top';
+    const step=Math.ceil(h.length/8);
+    for (let i=0;i<h.length;i+=step) fullCtx.fillText(i+1,tx(i),pad.t+gh+3);
+
+    // Staircase line
+    const stairH = h.filter(x => x.trialType === 'staircase');
+    fullCtx.beginPath(); fullCtx.strokeStyle='rgba(0,212,255,0.3)'; fullCtx.lineWidth=1.5;
+    stairH.forEach((x, si) => {
+      const i = h.indexOf(x);
+      si === 0 ? fullCtx.moveTo(tx(i), ty(x.staircaseVal)) : fullCtx.lineTo(tx(i), ty(x.staircaseVal));
+    });
+    fullCtx.stroke();
+
+    // Reversal tick marks
+    for (let i=1;i<h.length;i++) {
+      if (h[i].trialType !== 'staircase') continue;
+      const prev = [...h.slice(0,i)].reverse().find(x => x.trialType === 'staircase');
+      if (prev && h[i].aboveThreshold !== prev.aboveThreshold) {
+        const xx=tx(i), yy=ty(h[i].staircaseVal);
+        fullCtx.strokeStyle='rgba(255,208,96,0.42)'; fullCtx.lineWidth=1;
+        fullCtx.beginPath(); fullCtx.moveTo(xx,yy-7); fullCtx.lineTo(xx,yy+7); fullCtx.stroke();
+      }
+    }
+
+    // Dots
+    h.forEach((x, i) => {
+      const c   = x.correctedScore !== undefined ? x.correctedScore : (x.aboveThreshold ? 1 : 0);
+      const col = scoreColor(c);
+      const cx  = tx(i), cy = ty(x.staircaseVal);
+      fullCtx.fillStyle = col;
+      if (x.trialType === 'probe') {
+        // purple diamond
+        fullCtx.fillStyle = 'rgba(176,106,255,0.85)';
+        const r = 5;
+        fullCtx.beginPath();
+        fullCtx.moveTo(cx, cy - r); fullCtx.lineTo(cx + r, cy);
+        fullCtx.lineTo(cx, cy + r); fullCtx.lineTo(cx - r, cy);
+        fullCtx.closePath(); fullCtx.fill();
+        fullCtx.strokeStyle = col;
+        fullCtx.lineWidth = 1.2; fullCtx.stroke();
+      } else {
+        fullCtx.fillStyle = col;
+        fullCtx.beginPath(); fullCtx.arc(cx, cy, 3.5, 0, Math.PI*2); fullCtx.fill();
+      }
+    });
+
+    // Rev threshold line
+    const rvSlice = session.revVals.slice(-6);
+    if (rvSlice.length >= 2) {
+      const thr = rvSlice.reduce((a,b)=>a+b,0)/rvSlice.length;
+      const yy  = ty(thr);
+      fullCtx.setLineDash([5,4]);
+      fullCtx.strokeStyle='rgba(0,232,154,0.5)'; fullCtx.lineWidth=1.2;
+      fullCtx.beginPath(); fullCtx.moveTo(pad.l,yy); fullCtx.lineTo(pad.l+gw,yy); fullCtx.stroke();
+      fullCtx.setLineDash([]);
+      fullCtx.fillStyle='rgba(0,232,154,0.65)';
+      fullCtx.font=`9px 'Share Tech Mono',monospace`;
+      fullCtx.textAlign='left'; fullCtx.textBaseline='bottom';
+      fullCtx.fillText('rev̄', pad.l+3, yy-1);
+    }
+
+    // Fit threshold line
+    if (fit) {
+      const yy = ty(fit.mu);
+      fullCtx.setLineDash([3,3]);
+      fullCtx.strokeStyle='rgba(255,208,96,0.55)'; fullCtx.lineWidth=1.2;
+      fullCtx.beginPath(); fullCtx.moveTo(pad.l,yy); fullCtx.lineTo(pad.l+gw,yy); fullCtx.stroke();
+      fullCtx.setLineDash([]);
+      fullCtx.fillStyle='rgba(255,208,96,0.7)';
+      fullCtx.font=`9px 'Share Tech Mono',monospace`;
+      fullCtx.textAlign='right'; fullCtx.textBaseline='bottom';
+      fullCtx.fillText('fit', pad.l+gw-2, yy-1);
+    }
+
+    fullCtx.fillStyle='rgba(72,83,110,0.55)'; fullCtx.font=`8px 'Share Tech Mono',monospace`;
+    fullCtx.textAlign='left'; fullCtx.textBaseline='top';
+    fullCtx.fillText('STAIRCASE', pad.l+2, pad.t+2);
+    fullCtx.fillStyle='rgba(176,106,255,0.7)';
+    fullCtx.fillText('◆ = probe', pad.l+gw-48, pad.t+2);
+  }
+
+  // ── PSYCHOMETRIC panel (all trials including probes) ──
+  if (h.length >= 4) {
+    const oy  = CH_STAIR + GAP;
+    const ch  = CH_PSY;
+    const pad = { l:42, r:8, t:8, b:22 };
+    const gw  = cw-pad.l-pad.r, gh = ch-pad.t-pad.b;
+
+    const dvals = h.map(x => x.staircaseVal);
+    const dmin  = Math.min(...dvals), dmax = Math.max(...dvals);
+    const dRange = dmax - dmin || 1;
+    const px = d => pad.l + ((d - dmin) / dRange) * gw;
+    const py = p => oy + pad.t + gh - p * gh;
+
+    // Grid
+    fullCtx.strokeStyle='rgba(24,30,48,0.9)'; fullCtx.lineWidth=1;
+    [0, 0.25, 0.5, 0.75, 1].forEach(p => {
+      const y = py(p);
+      fullCtx.beginPath(); fullCtx.moveTo(pad.l,y); fullCtx.lineTo(pad.l+gw,y); fullCtx.stroke();
+      fullCtx.fillStyle='rgba(72,83,110,0.8)'; fullCtx.font=`9px 'Share Tech Mono',monospace`;
+      fullCtx.textAlign='right'; fullCtx.textBaseline='middle';
+      fullCtx.fillText(`${Math.round(p*100)}%`, pad.l-3, y);
+    });
+
+    // x-axis labels
+    const lim = DIM_LIMITS[session.cfg.staircaseDim];
+    fullCtx.fillStyle='rgba(72,83,110,0.65)'; fullCtx.font=`9px 'Share Tech Mono',monospace`;
+    fullCtx.textAlign='center'; fullCtx.textBaseline='top';
+    for (let t=0;t<=4;t++) {
+      const d = dmin + (t/4)*dRange;
+      const label = session.cfg.staircaseDim === 'duration' ? Math.round(d/1000)+'s' : Math.round(d)+lim.unit;
+      fullCtx.fillText(label, px(d), oy+pad.t+gh+3);
+    }
+
+    // Logistic curve
+    if (fit) {
+      fullCtx.beginPath(); fullCtx.strokeStyle='rgba(255,208,96,0.7)'; fullCtx.lineWidth=1.8;
+      for (let xi=0; xi<=gw; xi++) {
+        const d = dmin + (xi/gw)*dRange;
+        const p = 1 / (1 + Math.exp(-fit.k * (d - fit.mu)));
+        const y = py(p);
+        xi === 0 ? fullCtx.moveTo(pad.l+xi, y) : fullCtx.lineTo(pad.l+xi, y);
+      }
+      fullCtx.stroke();
+
+      // 75% threshold marker
+      const x75 = px(fit.mu);
+      fullCtx.setLineDash([3,3]);
+      fullCtx.strokeStyle='rgba(255,208,96,0.4)'; fullCtx.lineWidth=1;
+      fullCtx.beginPath(); fullCtx.moveTo(x75, oy+pad.t); fullCtx.lineTo(x75, oy+pad.t+gh); fullCtx.stroke();
+      fullCtx.setLineDash([]);
+
+      const slopeLabel = `k=${(fit.k*1000).toFixed(2)}/s`;
+      fullCtx.fillStyle='rgba(255,208,96,0.6)'; fullCtx.font=`8px 'Share Tech Mono',monospace`;
+      fullCtx.textAlign='right'; fullCtx.textBaseline='top';
+      fullCtx.fillText(slopeLabel, pad.l+gw-2, oy+pad.t+2);
+    }
+
+    // Raw scatter — all trials
+    h.forEach(x => {
+      const c   = x.correctedScore !== undefined ? x.correctedScore : (x.aboveThreshold ? 1 : 0);
+      const jitter = (Math.random()-0.5)*4;
+      const yy  = py(Math.max(0, Math.min(1, c))) + jitter;
+      const xx  = px(x.staircaseVal);
+      if (x.trialType === 'probe') {
+        fullCtx.fillStyle = 'rgba(176,106,255,0.75)';
+        const r = 4;
+        fullCtx.beginPath();
+        fullCtx.moveTo(xx, yy-r); fullCtx.lineTo(xx+r, yy);
+        fullCtx.lineTo(xx, yy+r); fullCtx.lineTo(xx-r, yy);
+        fullCtx.closePath(); fullCtx.fill();
+      } else {
+        fullCtx.fillStyle = scoreColor(c) + 'bb';
+        fullCtx.beginPath(); fullCtx.arc(xx, yy, 3, 0, Math.PI*2); fullCtx.fill();
+      }
+    });
+
+    fullCtx.fillStyle='rgba(72,83,110,0.55)'; fullCtx.font=`8px 'Share Tech Mono',monospace`;
+    fullCtx.textAlign='left'; fullCtx.textBaseline='top';
+    fullCtx.fillText('PSYCHOMETRIC', pad.l+2, oy+pad.t+2);
+  }
+}
+
+// ════════════════════════════════════════
+// ANIMATION LOOP
+// ════════════════════════════════════════
+let trialState         = 'idle';
+let animId             = null;
+let lastTs             = null;
+let phaseStart         = null;
+let currentTrialParams = null;
+
+function startLoop() { lastTs = null; animId = requestAnimationFrame(loop); }
+function stopLoop()  { if (animId) { cancelAnimationFrame(animId); animId = null; } }
+
+function loop(ts) {
+  if (!lastTs) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  if (trialState === 'countdown') {
+    const elapsed = ts - phaseStart;
+    renderBalls('neutral');
+    const n = Math.ceil((3000 - elapsed) / 1000);
+    document.getElementById('countdown-num').textContent = n > 0 ? n : '';
+    if (elapsed >= 3000) {
+      document.getElementById('countdown-num').textContent = '';
+      trialState = 'highlight'; phaseStart = ts; lastTs = null;
+      nextDirChange = ts + DIR_CHANGE_INTERVAL;
+    }
+  } else if (trialState === 'highlight') {
+    physics(dt, ts);
+    renderBalls('highlight');
+    if (ts - phaseStart >= HIGHLIGHT_MS) {
+      document.getElementById('arena-label').style.display = 'none';
+      trialState = 'tracking'; phaseStart = ts; lastTs = null;
+    }
+  } else if (trialState === 'tracking') {
+    physics(dt, ts);
+    renderBalls('neutral');
+    setProgressBar((ts - phaseStart) / currentTrialParams.duration);
+    if (ts - phaseStart >= currentTrialParams.duration) {
+      stopLoop();
+      enterResponse();
+      return;
+    }
+  }
+  animId = requestAnimationFrame(loop);
+}
+
+// ════════════════════════════════════════
+// TRIAL FLOW
+// ════════════════════════════════════════
+let currentProbeLevel = null;  // null = staircase, else 'floor'|'hard'|'near'|'easy'|'ceiling'
+
+function startTrial() {
+  selected.clear();
+
+  // Decide if this is a probe trial
+  if (isThisProbeTrialDue(session)) {
+    currentProbeLevel = PROBE_LEVELS[session.nextProbeIdx % PROBE_LEVELS.length];
+    session.lastProbeAt = session.history.filter(h => h.trialType === 'staircase').length;
+  } else {
+    currentProbeLevel = null;
+  }
+
+  const trialVal = currentProbeLevel !== null
+    ? probeValue(currentProbeLevel, session)
+    : session.currentVal;
+
+  currentTrialParams        = trialParams(trialVal);
+  currentTrialParams._val   = trialVal;
+  currentTrialParams._probe = currentProbeLevel;
+
+  balls = makeBalls(currentTrialParams.numBalls, currentTrialParams.speed);
+  targets.clear();
+  while (targets.size < currentTrialParams.numTargets)
+    targets.add(Math.floor(Math.random() * currentTrialParams.numBalls));
+  physics._lastSample = null;
+
+  // UI reset
+  document.getElementById('trial-overlay').classList.add('hidden');
+  document.getElementById('confirm-btn').style.display = 'none';
+  document.getElementById('arena-label').style.display = 'block';
+  document.getElementById('arena-label').textContent   = 'MEMORISE TARGETS';
+  document.getElementById('countdown-num').textContent = '3';
+  document.getElementById('hud-trial').textContent     = session.trialCount + 1;
+
+  // Probe badge
+  const badge = document.getElementById('probe-badge');
+  if (currentProbeLevel) {
+    badge.style.display = 'block';
+    badge.textContent = `◆ ${currentProbeLevel.toUpperCase()}`;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // HUD val pill
+  const dim = cfg.staircaseDim;
+  const lim = DIM_LIMITS[dim];
+  const valLabel = dim === 'duration' ? 'Dur' : dim === 'speed' ? 'Spd' : dim === 'balls' ? 'Balls' : 'Dist';
+  document.getElementById('hud-val-label').textContent = currentProbeLevel
+    ? `◆ ${currentProbeLevel.slice(0,3).toUpperCase()}`
+    : valLabel;
+  document.getElementById('hud-val-label').style.color = currentProbeLevel ? 'var(--purple)' : '';
+  document.getElementById('hud-dur').textContent =
+    dim === 'duration' ? Math.round(trialVal) + 'ms' : Math.round(trialVal) + lim.unit;
+
+  setProgressBar(0);
+  flashFixCross(false);
+  document.getElementById('fix-cross').style.display = 'block';
+  arenaWrap.style.cursor = 'default';
+
+  trialState = 'countdown';
+  phaseStart = performance.now();
+  startLoop();
+}
+
+function enterResponse() {
+  trialState = 'response';
+  renderBalls('response');
+  selected.clear();
+  document.getElementById('arena-label').style.display = 'block';
+  updateSelectLabel();
+  document.getElementById('confirm-btn').style.display = 'none';
+  flashFixCross(true);
+  setTimeout(() => flashFixCross(false), 380);
+  arenaWrap.style.cursor = 'crosshair';
+}
+
+function submitResponse() {
+  const tp       = currentTrialParams;
+  const isProbe  = tp._probe !== null && tp._probe !== undefined;
+  const probeLevel = tp._probe || null;
+  const trialVal = tp._val !== undefined ? tp._val : session.currentVal;
+
+  let hits = 0;
+  for (const i of targets) { if (selected.has(i)) hits++; }
+
+  const rawScore    = hits / tp.numTargets;
+  const chanceScore = tp.numTargets / tp.numBalls;
+  const corrected   = chanceScore < 1
+    ? (rawScore - chanceScore) / (1 - chanceScore)
+    : rawScore;
+  const aboveThreshold = corrected > 0.5;
+
+  session.trialCount++;
+  session.correctCount += rawScore;
+
+  const prev  = session.lastOutcome;
+  let   isRev = false;
+  if (!isProbe) {
+    session.lastOutcome = aboveThreshold ? 'above' : 'below';
+    isRev = prev !== null && prev !== session.lastOutcome;
+    if (isRev) { session.reversals++; session.revVals.push(trialVal); }
+    session.currentVal = stepVal(session.currentVal, aboveThreshold, session.reversals);
+  } else {
+    // Advance probe cycle
+    session.nextProbeIdx++;
+  }
+
+  session.history.push({
+    trial:          session.trialCount,
+    staircaseDim:   cfg.staircaseDim,
+    trialType:      isProbe ? 'probe' : 'staircase',
+    probeLevel:     probeLevel,
+    staircaseVal:   trialVal,
+    duration:       tp.duration,
+    numBalls:       tp.numBalls,
+    numTargets:     tp.numTargets,
+    speed:          tp.speed,
+    hits,
+    rawScore:       Math.round(rawScore * 100) / 100,
+    chanceScore:    Math.round(chanceScore * 100) / 100,
+    correctedScore: Math.round(corrected * 100) / 100,
+    aboveThreshold,
+    step:           currentStep(session.reversals),
+    collisions:     cfg.collisions,
+    dirChanges:     cfg.dirChanges,
+    balls: balls.map((b, i) => ({
+      id:          i,
+      isTarget:    targets.has(i),
+      wasSelected: selected.has(i),
+      dist:        Math.round(b.distTraveled),
+      collisions:  b.collisions,
+      occlusions:  b.occlusions,
+      minNN:       b.minNNdist === Infinity ? null : Math.round(b.minNNdist),
+      xy:          b.xyLog
+    }))
+  });
+
+  document.getElementById('arena-label').style.display = 'none';
+  document.getElementById('confirm-btn').style.display = 'none';
+  renderBalls('feedback');
+  drawMiniChart();
+
+  // HUD progress
+  const progLabel = document.getElementById('hud-prog-label');
+  const progVal   = document.getElementById('hud-rev');
+  if (cfg.stopMode === 'reversals') {
+    progLabel.textContent = 'Rev';
+    progVal.textContent   = session.reversals + '/' + cfg.reversalStop;
+  } else if (cfg.stopMode === 'trials') {
+    progLabel.textContent = 'Trial';
+    progVal.textContent   = session.trialCount + '/' + cfg.trialLimit;
+  } else {
+    progLabel.textContent = 'Trial';
+    progVal.textContent   = session.trialCount;
+  }
+
+  let done = false;
+  if      (cfg.stopMode === 'reversals') done = session.reversals >= cfg.reversalStop;
+  else if (cfg.stopMode === 'trials')    done = session.trialCount >= cfg.trialLimit;
+
+  const lastH     = session.history[session.history.length - 1];
+  const oel       = document.getElementById('ov-result');
+  const chancePct = Math.round(chanceScore * 100);
+  const cpct      = Math.round(corrected * 100);
+  const pct       = Math.round(rawScore * 100);
+
+  if (hits === tp.numTargets) {
+    oel.innerHTML = `&#10003; ${hits}/${tp.numTargets}`;
+    oel.className = 'ov-result ok';
+  } else if (hits === 0) {
+    oel.innerHTML = `&#10007; 0/${tp.numTargets}`;
+    oel.className = 'ov-result bad';
+  } else {
+    oel.innerHTML = `&#8764; ${hits}/${tp.numTargets}`;
+    oel.className = 'ov-result partial';
+  }
+
+  let progressLine = '';
+  if (cfg.stopMode === 'reversals')   progressLine = `Rev: <strong>${session.reversals}/${cfg.reversalStop}</strong>`;
+  else if (cfg.stopMode === 'trials') progressLine = `Trial: <strong>${session.trialCount}/${cfg.trialLimit}</strong>`;
+  else                                progressLine = `Trial: <strong>${session.trialCount}</strong>`;
+
+  const dim    = cfg.staircaseDim;
+  const lim    = DIM_LIMITS[dim];
+  const valStr = dim === 'duration' ? Math.round(lastH.staircaseVal) + ' ms'
+               : Math.round(lastH.staircaseVal) + lim.unit;
+  const stepPct = Math.round((currentStep(session.reversals) - 1) * 100);
+  const probeBadge = isProbe ? `<br><span style="font-size:0.68rem;color:var(--purple)">◆ probe · ${probeLevel}</span>` : '';
+
+  document.getElementById('ov-body').innerHTML =
+    `${lim.label}: <strong><span class="hi">${valStr}</span></strong> &nbsp;·&nbsp; ${progressLine}
+     <br>
+     <span class="score-row">
+       <span class="score-tile">${pct}%<span class="score-sub">raw</span></span>
+       <span class="score-tile dim">${chancePct}%<span class="score-sub">chance</span></span>
+       <span class="score-tile ${cpct >= 50 ? 'good' : 'bad2'}">${cpct}%<span class="score-sub">corrected</span></span>
+     </span>
+     ${isRev ? '<br><span class="rev">&#8617; reversal</span>' : ''}
+     ${probeBadge}
+     <span style="font-size:0.7rem;color:var(--dim)"> · step ±${stepPct}%${isRev && session.reversals >= 2 ? ' ↓ refined' : ''}</span>`;
+
+  const nb  = document.getElementById('btn-next-trial');
+  const esb = document.getElementById('btn-end-session');
+  if (done) {
+    nb.textContent = 'View Results'; nb.onclick = showResults; esb.style.display = 'none';
+  } else if (cfg.stopMode === 'manual') {
+    nb.textContent = 'Next Trial'; nb.onclick = startTrial;
+    esb.style.display = ''; esb.onclick = showResults;
+  } else {
+    nb.textContent = 'Next Trial'; nb.onclick = startTrial; esb.style.display = 'none';
+  }
+
+  document.getElementById('trial-overlay').classList.remove('hidden');
+}
+
+document.getElementById('confirm-btn').addEventListener('click', submitResponse);
+document.getElementById('confirm-btn').addEventListener('touchend', (e) => { e.preventDefault(); submitResponse(); });
+
+// ════════════════════════════════════════
+// PSYCHOMETRIC FUNCTION FIT
+// ════════════════════════════════════════
+function fitLogistic(history) {
+  if (history.length < 5) return null;
+  const data  = history.map(h => ({
+    d: h.staircaseVal,
+    r: Math.max(0.01, Math.min(0.99, h.correctedScore !== undefined ? h.correctedScore : (h.correct ? 1 : 0)))
+  }));
+  const dvals = data.map(h => h.d);
+  const dmin  = Math.min(...dvals), dmax = Math.max(...dvals);
+
+  let bestLL = -Infinity, bestMu = null, bestK = null;
+  const muSteps = 60, kSteps = 40;
+  for (let mi = 0; mi <= muSteps; mi++) {
+    const mu = dmin + (mi / muSteps) * (dmax - dmin);
+    for (let ki = 1; ki <= kSteps; ki++) {
+      const k = Math.exp(Math.log(1e-6) + (ki / kSteps) * (Math.log(5e-4) - Math.log(1e-6)));
+      let ll = 0;
+      for (const { d, r } of data) {
+        const p = Math.max(0.001, Math.min(0.999, 1 / (1 + Math.exp(-k * (d - mu)))));
+        ll += r * Math.log(p) + (1 - r) * Math.log(1 - p);
+      }
+      if (ll > bestLL) { bestLL = ll; bestMu = mu; bestK = k; }
+    }
+  }
+  return { mu: bestMu, k: bestK, ll: bestLL };
+}
+
+// ════════════════════════════════════════
+// RESULTS
+// ════════════════════════════════════════
+function computeThreshold() {
+  const r = session.revVals.slice(-6);
+  return r.length ? r.reduce((a, b) => a + b, 0) / r.length : null;
+}
+
+function showResults() {
+  stopLoop();
+  const thr  = computeThreshold();
+  const fit  = fitLogistic(session.history);
+  const acc  = session.trialCount ? Math.round(session.correctCount / session.trialCount * 100) : 0;
+  const meanCorr = session.history.length
+    ? Math.round(session.history.reduce((s, h) => s + (h.correctedScore ?? (h.correct ? 1 : 0)), 0) / session.history.length * 100)
+    : 0;
+  const sc  = session.cfg;
+  const dim = sc.staircaseDim;
+  const lim = DIM_LIMITS[dim];
+  const unit = lim.unit || '';
+  const vals = session.history.map(h => h.staircaseVal);
+  const vmin = Math.round(Math.min(...vals)), vmax = Math.round(Math.max(...vals));
+
+  document.getElementById('res-thr').innerHTML    = thr ? `${Math.round(thr)}<span class="ru">${unit || 'ms'}</span>` : '—';
+  document.getElementById('res-acc').innerHTML    = `${meanCorr}<span class="ru">% corr</span>`;
+  document.getElementById('res-trials').textContent  = session.trialCount;
+  document.getElementById('res-rev').textContent     = session.reversals;
+  document.getElementById('res-range').textContent   = `${vmin} – ${vmax}${unit || ' ms'}`;
+  document.getElementById('res-time').textContent    =
+    session.startTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  const fitThr  = fit ? Math.round(fit.mu) : null;
+  const fitSlope = fit ? (fit.k * 1000).toFixed(2) : null;
+  document.getElementById('res-fit-thr').innerHTML  = fitThr ? `${fitThr}<span class="ru">${unit || 'ms'}</span>` : '—';
+  document.getElementById('res-fit-slope').innerHTML = fitSlope ? `${fitSlope}<span class="ru">/s</span>` : '—';
+
+  saveHighScore(thr || fitThr);
+
+  const degsRef = pxsToDegs(sc.speed).toFixed(1);
+  const thrStr  = thr    ? Math.round(thr)    + lim.unit : '—';
+  const fitStr  = fitThr ? fitThr             + lim.unit : '—';
+  const probeCount = session.history.filter(h => h.trialType === 'probe').length;
+  document.getElementById('recap-grid').innerHTML = `
+    <div class="recap-item">Staircase <span>${lim.label}</span></div>
+    <div class="recap-item">Init val <span>${sc.initVal}${lim.unit}</span></div>
+    <div class="recap-item">Balls <span>${sc.numBalls}</span></div>
+    <div class="recap-item">Targets <span>${sc.numTargets}</span></div>
+    <div class="recap-item">Speed <span>${sc.speed} px/s (${degsRef}°/s)</span></div>
+    <div class="recap-item">Duration <span>${dim === 'duration' ? 'staircased' : sc.initDur+' ms'}</span></div>
+    <div class="recap-item">Collisions <span>${sc.collisions ? 'on' : 'off'}</span></div>
+    <div class="recap-item">Dir changes <span>${sc.dirChanges ? 'on' : 'off'}</span></div>
+    <div class="recap-item">Stop rule <span>${sc.stopMode === 'reversals' ? sc.reversalStop+' rev' : sc.stopMode === 'trials' ? sc.trialLimit+' trials' : 'manual'}</span></div>
+    <div class="recap-item">Rev thr <span>${thrStr}</span></div>
+    <div class="recap-item">Fit thr <span>${fitStr}</span></div>
+    <div class="recap-item">Probes <span>${probeCount}</span></div>
+  `;
+
+  showPage('page-results');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    drawFullChart(fit);
+    renderHighScores();
+  }));
+}
+
+// ════════════════════════════════════════
+// HIGH SCORES  (localStorage)
+// ════════════════════════════════════════
+const HS_KEY = 'mot_jnd_scores_v1';
+const HS_MAX = 10;
+
+function loadScores() {
+  try { return JSON.parse(localStorage.getItem(HS_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveHighScore(thrMs) {
+  if (!thrMs || thrMs < 500) return;
+  const scores = loadScores();
+  scores.push({
+    thr:     Math.round(thrMs),
+    date:    new Date().toLocaleDateString(),
+    balls:   session.cfg.numBalls,
+    targets: session.cfg.numTargets,
+    speed:   session.cfg.speed
+  });
+  scores.sort((a,b) => b.thr - a.thr);
+  scores.splice(HS_MAX);
+  try { localStorage.setItem(HS_KEY, JSON.stringify(scores)); } catch {}
+}
+
+function renderHighScores() {
+  const scores = loadScores();
+  const el = document.getElementById('high-scores-list');
+  if (!el) return;
+  if (!scores.length) { el.innerHTML = '<div style="color:var(--dim);font-size:0.78rem;padding:4px 0">No scores yet</div>'; return; }
+  const currentThr = computeThreshold();
+  const fitResult  = fitLogistic(session.history);
+  const myThr = Math.round(currentThr || (fitResult && fitResult.mu) || 0);
+  el.innerHTML = scores.map((s, i) => {
+    const isMe  = s.thr === myThr && s.date === new Date().toLocaleDateString();
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+    const pct   = Math.round((i / Math.max(scores.length-1,1)) * 100);
+    const rank  = i === 0 ? 'top' : `top ${100-pct}%`;
+    return `<div class="hs-row ${isMe ? 'hs-me' : ''}">
+      <span class="hs-rank">${medal}</span>
+      <span class="hs-thr">${(s.thr/1000).toFixed(1)}s</span>
+      <span class="hs-meta">${s.balls}b/${s.targets}t · ${s.date}</span>
+      <span class="hs-pct">${rank}</span>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
+// CSV EXPORT
+// ════════════════════════════════════════
+document.getElementById('btn-csv').addEventListener('click', () => {
+  const thr = computeThreshold();
+  const fit = fitLogistic(session.history);
+  const sc  = session.cfg;
+  const degsRef = pxsToDegs(sc.speed).toFixed(2);
+  const dim = sc.staircaseDim;
+  const lim = DIM_LIMITS[dim];
+  const lines = [
+    '# MOT-JND Session',
+    `# Date,${session.startTime.toISOString()}`,
+    `# StaircaseDim,${dim}`,
+    `# InitVal,${sc.initVal}`,
+    `# Balls,${sc.numBalls}`,
+    `# Targets,${sc.numTargets}`,
+    `# Speed_px_s,${sc.speed}`,
+    `# Speed_deg_s,${degsRef}`,
+    `# FixedDuration_ms,${dim === 'duration' ? 'staircased' : sc.initDur}`,
+    `# ViewDist_cm,${sc.viewDist}`,
+    `# Collisions,${sc.collisions}`,
+    `# DirChanges,${sc.dirChanges}`,
+    `# RevThreshold_${dim},${thr ? Math.round(thr) : ''}`,
+    `# FitThreshold_${dim},${fit ? Math.round(fit.mu) : ''}`,
+    `# FitSlope_k,${fit ? fit.k.toExponential(3) : ''}`,
+    `# Accuracy_pct,${session.trialCount ? Math.round(session.correctCount/session.trialCount*100) : ''}`,
+    '#',
+    '# --- TRIAL SUMMARY ---',
+    'trial,trial_type,probe_level,staircase_dim,staircase_val,duration_ms,numBalls,numTargets,speed_px_s,hits,raw_score,chance_score,corrected_score,above_threshold,reversal,step_mult',
+  ];
+  let lo = null;
+  session.history.forEach(h => {
+    const rev = (h.trialType === 'staircase' && lo !== null && lo !== h.aboveThreshold) ? 1 : 0;
+    if (h.trialType === 'staircase') lo = h.aboveThreshold;
+    lines.push(`${h.trial},${h.trialType},${h.probeLevel ?? ''},${h.staircaseDim},${Math.round(h.staircaseVal)},${Math.round(h.duration)},${h.numBalls},${h.numTargets},${h.speed},${h.hits ?? ''},${(h.rawScore ?? '').toString()},${(h.chanceScore ?? '').toString()},${(h.correctedScore ?? '').toString()},${h.aboveThreshold ? 1 : 0},${rev},${h.step.toFixed(2)}`);
+  });
+
+  lines.push('', '# --- PER-BALL STATS ---');
+  lines.push('trial,trial_type,probe_level,staircase_val,hits,corrected_score,ball_id,is_target,was_selected,dist_px,collisions,occlusions,min_nn_dist_px');
+  session.history.forEach(h => {
+    if (!h.balls) return;
+    h.balls.forEach(b => {
+      lines.push(`${h.trial},${h.trialType},${h.probeLevel ?? ''},${Math.round(h.staircaseVal)},${h.hits ?? ''},${(h.correctedScore ?? '').toString()},${b.id},${b.isTarget?1:0},${b.wasSelected?1:0},${b.dist},${b.collisions},${b.occlusions},${b.minNN ?? ''}`);
+    });
+  });
+
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href = url;
+  a.download = `mot-jnd_${dim}_${session.startTime.toISOString().slice(0,16).replace(/[T:]/g,'-')}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+});
+
+// ════════════════════════════════════════
+// JSON EXPORT
+// ════════════════════════════════════════
+document.getElementById('btn-json').addEventListener('click', () => {
+  const payload = {
+    meta: {
+      date:         session.startTime.toISOString(),
+      cfg:          session.cfg,
+      staircaseDim: session.cfg.staircaseDim,
+      revThreshold: computeThreshold(),
+      fitThreshold: (() => { const f = fitLogistic(session.history); return f ? Math.round(f.mu) : null; })(),
+    },
+    trials: session.history.map(h => ({
+      trial:          h.trial,
+      trialType:      h.trialType,
+      probeLevel:     h.probeLevel,
+      staircaseDim:   h.staircaseDim,
+      staircaseVal:   Math.round(h.staircaseVal),
+      duration:       Math.round(h.duration),
+      numBalls:       h.numBalls,
+      numTargets:     h.numTargets,
+      speed:          h.speed,
+      hits:           h.hits,
+      rawScore:       h.rawScore,
+      chanceScore:    h.chanceScore,
+      correctedScore: h.correctedScore,
+      aboveThreshold: h.aboveThreshold,
+      balls:          h.balls ? h.balls.map(b => ({
+        id: b.id, isTarget: b.isTarget, wasSelected: b.wasSelected,
+        dist: b.dist, collisions: b.collisions, occlusions: b.occlusions,
+        minNN: b.minNN, xy: b.xy
+      })) : []
+    }))
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href = url;
+  a.download = `mot-jnd-traj_${session.cfg.staircaseDim}_${session.startTime.toISOString().slice(0,16).replace(/[T:]/g,'-')}.json`;
+  a.click(); URL.revokeObjectURL(url);
+});
+
+// ════════════════════════════════════════
+// SETUP SLIDERS & TOGGLES
+// ════════════════════════════════════════
+function clampTargets() {
+  const maxT = Math.min(6, cfg.numBalls-1);
+  document.getElementById('sl-targets').max = maxT;
+  if (cfg.numTargets > maxT) {
+    cfg.numTargets = maxT;
+    document.getElementById('sl-targets').value = maxT;
+    document.getElementById('lbl-targets').textContent = maxT;
+  }
+}
+
+document.getElementById('sl-balls').addEventListener('input', e => {
+  cfg.numBalls = parseInt(e.target.value);
+  document.getElementById('lbl-balls').textContent = cfg.numBalls;
+  clampTargets();
+});
+document.getElementById('sl-targets').addEventListener('input', e => {
+  cfg.numTargets = parseInt(e.target.value);
+  document.getElementById('lbl-targets').textContent = cfg.numTargets;
+});
+document.getElementById('sl-speed').addEventListener('input', e => {
+  cfg.speed = parseInt(e.target.value);
+  updateSpeedLabel();
+});
+document.getElementById('sl-dist').addEventListener('input', e => {
+  cfg.viewDist = parseInt(e.target.value);
+  document.getElementById('lbl-dist').textContent = cfg.viewDist + ' cm';
+  updateSpeedLabel();
+});
+document.getElementById('sl-initdur').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  cfg.initVal = v;
+  if (cfg.staircaseDim === 'duration') cfg.initDur = v;
+  const dim = cfg.staircaseDim;
+  document.getElementById('lbl-initdur').textContent = DIM_SLIDER_CONFIGS[dim].fmt(v);
+});
+
+document.getElementById('tog-probes').addEventListener('change', e => {
+  cfg.enableProbes = e.target.checked;
+  document.getElementById('probe-settings').style.display = e.target.checked ? '' : 'none';
+});
+document.getElementById('sl-probe-freq').addEventListener('input', e => {
+  cfg.probeFreq = parseInt(e.target.value);
+  document.getElementById('lbl-probe-freq').textContent = `1 in ${cfg.probeFreq}`;
+});
+
+// ── Staircase dimension buttons ──
+const DIM_HINTS = {
+  duration:    'Duration of the tracking phase staircases. All other parameters are fixed.',
+  distractors: 'Number of distractor balls staircases (targets stay fixed). More distractors = harder.',
+  balls:       'Total ball count staircases (targets stay fixed). More balls = more crowding.',
+  speed:       'Ball speed staircases. Faster = harder. Duration stays fixed.',
+};
+const DIM_SLIDER_CONFIGS = {
+  duration:    { min: 400,  max: 30000, step: 100, val: 1500, label: 'Starting Duration', fmt: v => Math.round(v) + ' ms' },
+  distractors: { min: 1,    max: 12,    step: 1,   val: 5,    label: 'Starting Distractors', fmt: v => Math.round(v) },
+  balls:       { min: 3,    max: 16,    step: 1,   val: 8,    label: 'Starting Ball Count', fmt: v => Math.round(v) },
+  speed:       { min: 20,   max: 400,   step: 4,   val: 84,   label: 'Starting Speed',    fmt: v => Math.round(v) + ' px/s' },
+};
+
+function updateInitSlider(dim) {
+  const sc   = DIM_SLIDER_CONFIGS[dim];
+  const sl   = document.getElementById('sl-initdur');
+  const lbl  = document.getElementById('lbl-initdur');
+  const name = document.getElementById('lbl-initval-name');
+  const hints = document.getElementById('initdur-hints');
+  sl.min = sc.min; sl.max = sc.max; sl.step = sc.step; sl.value = sc.val;
+  lbl.textContent  = sc.fmt(sc.val);
+  name.textContent = sc.label;
+  hints.style.display = dim === 'duration' ? 'flex' : 'none';
+  cfg.initVal  = sc.val;
+  cfg.initDur  = (dim === 'duration') ? sc.val : cfg.initDur;
+  document.getElementById('dim-hint').textContent = DIM_HINTS[dim];
+}
+
+document.querySelectorAll('[data-dim]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-dim]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    cfg.staircaseDim = btn.dataset.dim;
+    updateInitSlider(btn.dataset.dim);
+  });
+});
+
+document.querySelectorAll('[data-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    cfg.stopMode = btn.dataset.mode;
+    document.getElementById('stop-sub-reversals').style.display = cfg.stopMode === 'reversals' ? '' : 'none';
+    document.getElementById('stop-sub-trials').style.display    = cfg.stopMode === 'trials'    ? '' : 'none';
+    document.getElementById('stop-sub-manual').style.display    = cfg.stopMode === 'manual'    ? '' : 'none';
+  });
+});
+document.getElementById('sl-rev-stop').addEventListener('input', e => {
+  cfg.reversalStop = parseInt(e.target.value);
+  document.getElementById('lbl-rev-stop').textContent = cfg.reversalStop;
+});
+document.getElementById('sl-trial-limit').addEventListener('input', e => {
+  cfg.trialLimit = parseInt(e.target.value);
+  document.getElementById('lbl-trial-limit').textContent = cfg.trialLimit;
+});
+document.getElementById('tog-collisions').addEventListener('change', e => {
+  cfg.collisions = e.target.checked;
+});
+document.getElementById('tog-dirchange').addEventListener('change', e => {
+  cfg.dirChanges = e.target.checked;
+});
+
+document.getElementById('btn-begin').addEventListener('click', () => {
+  session = newSession();
+  const progLabel = document.getElementById('hud-prog-label');
+  const progVal   = document.getElementById('hud-rev');
+  if (cfg.stopMode === 'reversals') {
+    progLabel.textContent = 'Rev';
+    progVal.textContent   = '0/' + cfg.reversalStop;
+  } else if (cfg.stopMode === 'trials') {
+    progLabel.textContent = 'Trial';
+    progVal.textContent   = '0/' + cfg.trialLimit;
+  } else {
+    progLabel.textContent = 'Trial';
+    progVal.textContent   = '0';
+  }
+  showPage('page-trial');
+  setTimeout(() => {
+    sizeArena();
+    drawMiniChart();
+    startTrial();
+  }, 80);
+});
+
+document.getElementById('btn-abort').addEventListener('click', () => {
+  stopLoop(); showPage('page-setup');
+});
+document.getElementById('btn-new-session').addEventListener('click', () => {
+  showPage('page-setup');
+});
+
+// ════════════════════════════════════════
+// PWA SERVICE WORKER REGISTRATION
+// ════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+setTimeout(() => {
+  sizeArena();
+  updateSpeedLabel();
+  updateInitSlider('duration');
+  setTimeout(updatePylyshynMarker, 200);
+}, 100);
+</script>
+</body>
+</html>
