@@ -445,7 +445,7 @@ input[type=range]::-webkit-slider-thumb {
             </div>
           </div>
           <div class="slider-track-wrap" id="speed-track-wrap">
-            <input type="range" id="sl-speed" min="20" max="400" step="4" value="84">
+            <input type="range" id="sl-speed" min="20" max="1200" step="8" value="84">
           </div>
         </div>
 
@@ -769,7 +769,7 @@ const DIM_LIMITS = {
   duration:    { min: 150,  max: 30000, unit: 'ms',   label: 'Duration' },
   distractors: { min: 1,    max: 12,    unit: '',      label: 'Distractors' },
   balls:       { min: 3,    max: 16,    unit: '',      label: 'Total Balls' },
-  speed:       { min: 20,   max: 400,   unit: ' px/s', label: 'Speed' },
+  speed:       { min: 20,   max: 1200,  unit: ' px/s', label: 'Speed' },
 };
 
 // ════════════════════════════════════════
@@ -804,68 +804,72 @@ function probeValue(level, session) {
     ? rvs.slice(-Math.min(6, rvs.length)).reduce((a, b) => a + b, 0) / Math.min(6, rvs.length)
     : session.currentVal;
 
-  // First-reversal anchor: use the value at which the first reversal occurred,
-  // if available. This is a stable early estimate of the threshold region.
-  const firstRevVal = rvs.length >= 1 ? rvs[0] : null;
+  // First-reversal anchor: stable early landmark for threshold region.
+  const a = (rvs.length >= 1 ? rvs[0] : null) ?? est;
 
-  // Stage:
-  //   0 = pre-first-reversal  → simple fraction of current estimate
-  //   1 = after 1st reversal  → anchor ±100%
-  //   2 = after 2nd reversal  → anchor ±200%
+  // Stage escalates floor/ceiling extremity as session converges:
+  //   0 = pre-first-reversal  → absolute limits of slider range
+  //   1 = after 1st reversal  → anchor ×2 / ÷2 of firstRevVal
+  //   2 = after 2nd reversal  → anchor ×3 / ÷3 of firstRevVal
   const stage = Math.min(2, session.reversals);
 
-  const isHardDim = (dim === 'duration' || dim === 'speed');
-
-  // Compute floor/ceiling anchor offsets based on stage and first-rev value
-  function floorVal() {
-    if (!isHardDim) {
-      // For balls/distractors: floor = maximum (hardest end)
-      if (stage === 0) return lim.max;
-      const anchor = firstRevVal !== null ? firstRevVal : est;
-      if (stage === 1) return Math.min(lim.max, Math.round(anchor * 2.0));   // +100%
-      /* stage 2 */   return Math.min(lim.max, Math.round(anchor * 3.0));   // +200%
-    } else {
-      // For duration/speed: floor = minimum (hardest end — too short/slow to track)
-      if (stage === 0) return lim.min;
-      const anchor = firstRevVal !== null ? firstRevVal : est;
-      if (stage === 1) return Math.max(lim.min, Math.round(anchor * 0.50)); // −100% (half)
-      /* stage 2 */   return Math.max(lim.min, Math.round(anchor * 0.33)); // −200% (one-third)
-    }
-  }
-
-  function ceilingVal() {
-    if (!isHardDim) {
-      // For balls/distractors: ceiling = minimum (easiest end — fewest distractors)
-      if (stage === 0) return lim.min;
-      const anchor = firstRevVal !== null ? firstRevVal : est;
-      if (stage === 1) return Math.max(lim.min, Math.round(anchor * 0.50)); // −100%
-      /* stage 2 */   return Math.max(lim.min, Math.round(anchor * 0.33)); // −200%
-    } else {
-      // For duration/speed: ceiling = maximum (easiest end — very long/fast)
-      if (stage === 0) return lim.max;
-      const anchor = firstRevVal !== null ? firstRevVal : est;
-      if (stage === 1) return Math.min(lim.max, Math.round(anchor * 2.0));  // +100%
-      /* stage 2 */   return Math.min(lim.max, Math.round(anchor * 3.0));  // +200%
-    }
-  }
-
-  if (isHardDim) {
+  // ── DURATION ──
+  // Longer = easier. Correct → shorter (harder). floor = shortest, ceiling = longest.
+  if (dim === 'duration') {
     switch (level) {
-      case 'floor':   return floorVal();
-      case 'hard':    return Math.max(lim.min, est * 0.50);
-      case 'near':    return Math.max(lim.min, est * 0.65);
-      case 'easy':    return Math.min(lim.max, est * 2.0);
-      case 'ceiling': return ceilingVal();
-    }
-  } else {
-    switch (level) {
-      case 'floor':   return floorVal();
-      case 'hard':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.5));
-      case 'near':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.2));
-      case 'easy':    return Math.max(lim.min, Math.round(est - (est - lim.min) * 0.5));
-      case 'ceiling': return ceilingVal();
+      case 'floor':
+        // Way too short — definitely fail
+        if (stage === 0) return lim.min;
+        if (stage === 1) return Math.max(lim.min, Math.round(a * 0.50));
+        return               Math.max(lim.min, Math.round(a * 0.33));
+      case 'hard':    return Math.max(lim.min, Math.round(est * 0.50));
+      case 'near':    return Math.max(lim.min, Math.round(est * 0.65));
+      case 'easy':    return Math.min(lim.max, Math.round(est * 2.0));
+      case 'ceiling':
+        // Way too long — definitely succeed
+        if (stage === 0) return lim.max;
+        if (stage === 1) return Math.min(lim.max, Math.round(a * 2.0));
+        return               Math.min(lim.max, Math.round(a * 3.0));
     }
   }
+
+  // ── SPEED ──
+  // Faster = harder. Correct → faster (harder). floor = fastest (hardest), ceiling = slowest (easiest).
+  // This is the OPPOSITE sign to duration for floor/ceiling anchoring.
+  if (dim === 'speed') {
+    switch (level) {
+      case 'floor':
+        // Way too fast — definitely fail
+        if (stage === 0) return lim.max;
+        if (stage === 1) return Math.min(lim.max, Math.round(a * 2.0));  // 2x threshold speed
+        return               Math.min(lim.max, Math.round(a * 3.0));    // 3x threshold speed
+      case 'hard':    return Math.min(lim.max, Math.round(est * 1.5));   // 50% faster than threshold
+      case 'near':    return Math.min(lim.max, Math.round(est * 1.2));   // 20% faster
+      case 'easy':    return Math.max(lim.min, Math.round(est * 0.65));  // 35% slower
+      case 'ceiling':
+        // Way too slow — definitely succeed
+        if (stage === 0) return lim.min;
+        if (stage === 1) return Math.max(lim.min, Math.round(a * 0.50)); // half threshold speed
+        return               Math.max(lim.min, Math.round(a * 0.33));   // one-third threshold speed
+    }
+  }
+
+  // ── BALLS / DISTRACTORS ──
+  // More = harder. Correct → more (harder). floor = max (most crowded), ceiling = min (trivial).
+  switch (level) {
+    case 'floor':
+      if (stage === 0) return lim.max;
+      if (stage === 1) return Math.min(lim.max, Math.round(a * 2.0));
+      return               Math.min(lim.max, Math.round(a * 3.0));
+    case 'hard':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.5));
+    case 'near':    return Math.min(lim.max, Math.round(est + (lim.max - est) * 0.2));
+    case 'easy':    return Math.max(lim.min, Math.round(est - (est - lim.min) * 0.5));
+    case 'ceiling':
+      if (stage === 0) return lim.min;
+      if (stage === 1) return Math.max(lim.min, Math.round(a * 0.50));
+      return               Math.max(lim.min, Math.round(a * 0.33));
+  }
+
   return est;
 }
 
@@ -943,16 +947,24 @@ function trialParams(val) {
 
 function stepVal(val, correct, reversals) {
   const lim = DIM_LIMITS[cfg.staircaseDim];
-  if (cfg.staircaseDim === 'duration' || cfg.staircaseDim === 'speed') {
-    const s = currentStep(reversals);
+  const s   = currentStep(reversals);
+
+  if (cfg.staircaseDim === 'duration') {
+    // Longer = easier. Correct → harder (shorter, val/s). Incorrect → easier (longer, val*s).
     return correct
-      ? Math.min(val * s,   lim.max)
-      : Math.max(val / s,   lim.min);
-  } else {
-    return correct
-      ? Math.min(val + 1, lim.max)
-      : Math.max(val - 1, lim.min);
+      ? Math.max(val / s, lim.min)
+      : Math.min(val * s, lim.max);
   }
+  if (cfg.staircaseDim === 'speed') {
+    // Faster = harder. Correct → harder (faster, val*s). Incorrect → easier (slower, val/s).
+    return correct
+      ? Math.min(val * s, lim.max)
+      : Math.max(val / s, lim.min);
+  }
+  // balls / distractors: more = harder. Correct → harder (+1). Incorrect → easier (-1).
+  return correct
+    ? Math.min(val + 1, lim.max)
+    : Math.max(val - 1, lim.min);
 }
 
 // ════════════════════════════════════════
@@ -2059,7 +2071,7 @@ const DIM_SLIDER_CONFIGS = {
   duration:    { min: 400,  max: 30000, step: 100, val: 1500, label: 'Starting Duration', fmt: v => Math.round(v) + ' ms' },
   distractors: { min: 1,    max: 12,    step: 1,   val: 5,    label: 'Starting Distractors', fmt: v => Math.round(v) },
   balls:       { min: 3,    max: 16,    step: 1,   val: 8,    label: 'Starting Ball Count', fmt: v => Math.round(v) },
-  speed:       { min: 20,   max: 400,   step: 4,   val: 84,   label: 'Starting Speed',    fmt: v => Math.round(v) + ' px/s' },
+  speed:       { min: 20,   max: 1200,  step: 8,   val: 40,   label: 'Starting Speed (slow=easy)',    fmt: v => Math.round(v) + ' px/s' },
 };
 
 function updateInitSlider(dim) {
