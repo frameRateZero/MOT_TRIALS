@@ -564,7 +564,7 @@ input[type=range]::-webkit-slider-thumb {
         <div class="toggle-row" style="padding-top:0">
           <div>
             <div class="toggle-label">Enable Probe Trials</div>
-            <div class="toggle-sub">Sample 0%–100% range, not just staircase zone</div>
+            <div class="toggle-sub">Interleave psychometric checks during staircase</div>
           </div>
           <label class="toggle">
             <input type="checkbox" id="tog-probes" checked>
@@ -582,14 +582,9 @@ input[type=range]::-webkit-slider-thumb {
             <div style="font-size:0.68rem;color:var(--dim);margin-top:2px">Insert a probe trial every N staircase trials</div>
           </div>
           <div style="font-size:0.72rem;color:var(--dim);line-height:1.6;padding-top:6px">
-            Probes are shown as <span style="color:var(--purple);font-family:var(--mono)">◆ PROBE</span> in the HUD.
-            They cover: <strong style="color:var(--text)">floor</strong> (well below threshold),
-            <strong style="color:var(--text)">easy</strong> (3× threshold),
-            <strong style="color:var(--text)">near</strong> (1.5×),
-            <strong style="color:var(--text)">hard</strong> (0.5×), and
-            <strong style="color:var(--text)">ceiling</strong> (well above threshold).
-            Floor &amp; ceiling become more extreme after the first reversal is recorded.
-            These are not counted as reversals.
+            Probes are shown as <span style="color:var(--purple);font-family:var(--mono)">◆ PROBE</span> in the arena during the staircase phase.
+            They sample values above and below the current threshold estimate to build a psychometric curve.
+            Probe trials are not counted as reversals and do not affect the staircase.
           </div>
         </div>
       </div>
@@ -1577,14 +1572,16 @@ let currentProbeLevel = null;
 function startTrial() {
   selected.clear();
 
-  // ── Ladder phase (first 10 trials) ──
+  // ── Determine trial value and type ──
   const inLadder = !session.ladderDone;
+  let trialVal;
+
   if (inLadder) {
-    currentProbeLevel = null;
-    const trialVal            = session.ladderVals[session.ladderIdx];
-    currentTrialParams        = trialParams(trialVal);
-    currentTrialParams._val   = trialVal;
-    currentTrialParams._probe = null;
+    currentProbeLevel          = null;
+    trialVal                   = session.ladderVals[session.ladderIdx];
+    currentTrialParams         = trialParams(trialVal);
+    currentTrialParams._val    = trialVal;
+    currentTrialParams._probe  = null;
     currentTrialParams._ladder = true;
   } else {
     // ── Staircase / probe phase ──
@@ -1594,14 +1591,12 @@ function startTrial() {
     } else {
       currentProbeLevel = null;
     }
-
-    const trialVal = currentProbeLevel !== null
+    trialVal                   = currentProbeLevel !== null
       ? probeValue(currentProbeLevel, session)
       : session.currentVal;
-
-    currentTrialParams        = trialParams(trialVal);
-    currentTrialParams._val   = trialVal;
-    currentTrialParams._probe = currentProbeLevel;
+    currentTrialParams         = trialParams(trialVal);
+    currentTrialParams._val    = trialVal;
+    currentTrialParams._probe  = currentProbeLevel;
     currentTrialParams._ladder = false;
   }
 
@@ -1691,13 +1686,16 @@ function submitResponse() {
   let   isRev = false;
 
   if (isLadder) {
-    // Record ladder outcome; advance index
+    // Record ladder outcome; advance index. Always runs all 10 trials.
     session.ladderIdx++;
-    if (session.ladderIdx >= session.ladderVals.length || !aboveThreshold) {
-      // Ladder done: set staircase init to last-correct ladder value (or step back one)
-      const flipIdx = !aboveThreshold
-        ? Math.max(0, session.ladderIdx - 1)   // step back from first miss
-        : session.ladderIdx - 1;               // all correct — use top of ladder
+    if (session.ladderIdx >= session.ladderVals.length) {
+      // Ladder complete — find the last step the participant got correct
+      // Walk backwards through ladder history to find last correct trial
+      const ladderHistory = session.history.filter(h => h.trialType === 'ladder');
+      let flipIdx = 0;
+      for (let i = ladderHistory.length - 1; i >= 0; i--) {
+        if (ladderHistory[i].aboveThreshold) { flipIdx = i; break; }
+      }
       session.currentVal = session.ladderVals[flipIdx];
       session.ladderDone = true;
     }
